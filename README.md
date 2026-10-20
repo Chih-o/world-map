@@ -2,13 +2,14 @@
 
 **網站：** https://chih-o.github.io/world-map/
 
-用 [GDELT](https://www.gdeltproject.org/) 的全球新聞事件資料，顯示最近 6 小時各國的時事熱度和狀態。
+用 [GDELT](https://www.gdeltproject.org/) 的全球新聞事件資料，顯示最近 6 小時各國的時事熱度和狀態；
+左側顯示台灣、美國、日本、韓國、新加坡股市指數（Yahoo Finance，紅漲綠跌）。
 
 ## 運作方式
 
 ```
 GDELT（每 15 分鐘更新）
-   │  GitHub Actions 每小時執行 scripts/fetch_gdelt.py
+   │  GitHub Actions 每 30 分鐘執行 scripts/fetch_gdelt.py、fetch_markets.py
    ▼
 data/latest.json、data/history.json
    │  GitHub Pages
@@ -20,7 +21,8 @@ index.html：世界地圖（Leaflet）
 |---|---|
 | `index.html` | 地圖網頁 |
 | `scripts/fetch_gdelt.py` | 下載 GDELT 資料，依國家統計 |
-| `.github/workflows/update.yml` | 每小時自動執行並發布網站 |
+| `scripts/fetch_markets.py` | 下載股市指數 |
+| `.github/workflows/update.yml` | 每 30 分鐘自動執行並發布網站 |
 | `data/` | 自動產生的資料（請勿手動修改） |
 
 ## 指標說明
@@ -35,6 +37,7 @@ index.html：世界地圖（Leaflet）
 
 ```
 python scripts/fetch_gdelt.py
+python scripts/fetch_markets.py
 python -m http.server 8000
 ```
 然後打開 http://localhost:8000

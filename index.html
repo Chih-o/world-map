@@ -14,7 +14,22 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
     font: 14px/1.5 system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", sans-serif; }
-  .app { display: grid; grid-template-columns: minmax(0, 1fr) 400px; height: 100vh; }
+  .app { display: grid; grid-template-columns: 250px minmax(0, 1fr) 400px; height: 100vh; }
+  .markets { background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; padding: 18px 14px 30px; min-width: 0; }
+  .markets h2 { margin-top: 0; }
+  .cards { display: flex; flex-direction: column; gap: 10px; }
+  .card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .card .top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 12px; }
+  .card .rg { color: var(--muted); }
+  .card .st { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .card .st i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); margin-right: 4px; vertical-align: 1px; }
+  .card .st.open i { background: #22c55e; }
+  .card .nm2 { font-weight: 600; margin-top: 2px; }
+  .card .px { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .card .chg { font-size: 12px; font-variant-numeric: tabular-nums; }
+  .card .mini { width: 100%; height: 34px; display: block; margin-top: 6px; }
+  .card .mo { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .rise { color: #ef4444; } .fall { color: #22c55e; } .even { color: var(--muted); }
   #map { height: 100%; background: #0a1220; }
   aside { min-width: 0; background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 18px 18px 40px; }
   h1 { font-size: 20px; margin: 0; letter-spacing: .5px; }
@@ -74,15 +89,30 @@
   .leaflet-container { font: inherit; }
   .leaflet-tooltip { background: var(--panel); color: var(--text); border: 1px solid var(--line); }
   .leaflet-tooltip-top:before { border-top-color: var(--line); }
+  @media (max-width: 1180px) {
+    .app { grid-template-columns: 210px minmax(0, 1fr) 340px; }
+    .card .px { font-size: 17px; }
+  }
   @media (max-width: 860px) {
-    .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 58vh auto; height: auto; }
+    .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 58vh auto; height: auto; }
     .mapwrap { height: 58vh; }
     aside { border-left: 0; border-top: 1px solid var(--line); padding: 16px; }
+    .markets { border-right: 0; border-bottom: 1px solid var(--line); padding: 12px 16px; }
+    .markets h2 { margin-bottom: 8px; }
+    .cards { flex-direction: row; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px;
+      scrollbar-color: var(--line) transparent; }
+    .card { flex: 0 0 180px; scroll-snap-align: start; }
+    .markets .note { margin-top: 8px; }
   }
 </style>
 </head>
 <body>
 <div class="app">
+  <section class="markets">
+    <h2>亞太與美國股市</h2>
+    <div class="cards" id="cards"><div class="sub">載入中…</div></div>
+    <p class="note" id="mk-note">紅漲綠跌 · 資料來源 Yahoo Finance，約每 30 分鐘更新，可能延遲，僅供參考。</p>
+  </section>
   <div class="mapwrap">
     <div id="map"></div>
     <div class="overlay">
@@ -313,8 +343,43 @@ async function load() {
     console.error(err);
   }
 }
-load();
-setInterval(load, 10 * 60 * 1000);
+function miniChart(vals, cls) {
+  if (vals.length < 2) return "";
+  const W = 200, H = 34, lo = Math.min(...vals), hi = Math.max(...vals), span = (hi - lo) || 1;
+  const line = vals.map((v, i) => `${(i / (vals.length - 1) * W).toFixed(1)},${(H - 3 - (v - lo) / span * (H - 6)).toFixed(1)}`).join(" ");
+  const color = cls === "rise" ? "#ef4444" : cls === "fall" ? "#22c55e" : "#8b96ab";
+  return `<svg class="mini" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <polyline points="${line}" fill="none" stroke="${color}" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+async function loadMarkets() {
+  try {
+    const { generated, markets } = await (await fetch(`data/markets.json?t=${Date.now()}`)).json();
+    const sign = n => (n > 0 ? "+" : "") + n.toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const dir = n => n > 0 ? "rise" : n < 0 ? "fall" : "even";
+    document.getElementById("cards").innerHTML = markets.map(m => {
+      const cls = dir(m.change), arrow = m.change > 0 ? "▲" : m.change < 0 ? "▼" : "";
+      const t = new Date(m.time * 1000).toLocaleString("zh-TW", { timeZone: m.timezone, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+      return `<div class="card">
+        <div class="top"><span class="rg">${esc(m.region)}</span>
+          <span class="st ${m.open ? "open" : ""}"><i></i>${m.open ? "交易中" : "已收盤"} ${esc(t)}</span></div>
+        <div class="nm2">${esc(m.name)}</div>
+        <div class="px">${m.price.toLocaleString("zh-TW", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+        <div class="chg ${cls}">${arrow} ${sign(m.change)}（${sign(m.change_pct)}%）</div>
+        ${miniChart(m.intraday, cls)}
+        <div class="mo"><span>↑ 今日走勢</span><span>近一月 <span class="${dir(m.month_change_pct ?? 0)}">${m.month_change_pct == null ? "—" : sign(m.month_change_pct) + "%"}</span></span></div>
+      </div>`;
+    }).join("");
+    const g = new Date(generated).toLocaleString("zh-TW", { dateStyle: "short", timeStyle: "short" });
+    document.getElementById("mk-note").textContent = `紅漲綠跌 · 更新於 ${g} · 資料來源 Yahoo Finance，約每 30 分鐘更新，可能延遲，僅供參考。`;
+  } catch (err) {
+    document.getElementById("cards").innerHTML = '<div class="sub">股市資料載入失敗</div>';
+    console.error(err);
+  }
+}
+
+load(); loadMarkets();
+setInterval(() => { load(); loadMarkets(); }, 10 * 60 * 1000);
 </script>
 </body>
 </html>

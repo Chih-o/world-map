@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 
 BASE = "http://data.gdeltproject.org/gdeltv2/"
 HOURS = 6                 # rolling window size
-HISTORY_LEN = 72          # hourly snapshots kept (3 days)
+HISTORY_LEN = 144         # snapshots kept (3 days at one run per 30 minutes)
 MIN_EVENTS = 5            # ignore countries with fewer events than this
 DATA = Path(__file__).resolve().parent.parent / "data"
 

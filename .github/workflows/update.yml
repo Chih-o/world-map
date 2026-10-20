@@ -2,7 +2,7 @@ name: Update map data
 
 on:
   schedule:
-    - cron: "7 * * * *"   # every hour at :07 (UTC)
+    - cron: "7,37 * * * *"   # every 30 minutes
   workflow_dispatch:       # "Run workflow" button on the Actions tab
   push:
     branches: [main]
@@ -31,12 +31,19 @@ jobs:
 
       - name: Fetch latest GDELT events
         run: python scripts/fetch_gdelt.py
+        continue-on-error: true
 
+      - name: Fetch stock indices
+        run: python scripts/fetch_markets.py
+        continue-on-error: true
+
+      # latest.json is large and regenerated every run, so only the small
+      # files needed by the next run are committed; Pages gets all of them.
       - name: Commit data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data
+          git add data/history.json data/markets.json
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "Update data $(date -u +'%Y-%m-%d %H:%M UTC')"
           git pull --rebase
