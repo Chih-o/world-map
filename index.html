@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>全球時事熱度</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    --bg: #0b0f17; --panel: #111827; --panel-2: #1a2232; --line: #263044;
+    --text: #e5e9f0; --muted: #8b96ab; --accent: #60a5fa;
+    --calm: #14b8a6; --watch: #f59e0b; --tense: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", sans-serif; }
+  .app { display: grid; grid-template-columns: minmax(0, 1fr) 400px; height: 100vh; }
+  #map { height: 100%; background: #0a1220; }
+  aside { min-width: 0; background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 18px 18px 40px; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: .5px; }
+  h2 { font-size: 13px; color: var(--muted); font-weight: 600; margin: 22px 0 10px; letter-spacing: .5px; }
+  .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .live { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--tense);
+    margin-right: 6px; animation: pulse 1.6s infinite; vertical-align: 1px; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+  .tile { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  .tile b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .tile span { color: var(--muted); font-size: 11px; }
+  .spark { width: 100%; height: 56px; display: block; }
+  .bars .row { display: grid; grid-template-columns: 84px 1fr 56px; gap: 8px; align-items: center; margin: 5px 0; font-size: 12px; }
+  .bar { height: 8px; background: var(--panel-2); border-radius: 4px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .bars .row .n { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .tabs button, .toggles button { background: var(--panel-2); color: var(--muted); border: 1px solid var(--line);
+    border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 12px; cursor: pointer; }
+  .tabs button.on, .toggles button.on { color: var(--text); border-color: var(--accent); }
+  input[type=search] { width: 100%; background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+    border-radius: 8px; padding: 7px 10px; font: inherit; margin-bottom: 8px; }
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list li { display: grid; grid-template-columns: 24px 1fr auto auto; gap: 8px; align-items: center;
+    padding: 8px 6px; border-bottom: 1px solid var(--line); cursor: pointer; border-radius: 6px; }
+  .list li:hover, .list li.sel { background: var(--panel-2); }
+  .rank { color: var(--muted); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+  .nm small, .detail h3 small { color: var(--muted); margin-left: 6px; font-size: 12px; font-weight: 400; }
+  .num { font-variant-numeric: tabular-nums; text-align: right; font-size: 13px; }
+  .trend { font-size: 11px; display: block; }
+  .up { color: var(--tense); } .down { color: var(--calm); } .flat { color: var(--muted); }
+  .badge { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+  .l1 { color: var(--calm); border-color: var(--calm); }
+  .l2 { color: var(--watch); border-color: var(--watch); }
+  .l3 { color: var(--tense); border-color: var(--tense); }
+  .detail { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-top: 16px; }
+  .detail[hidden] { display: none; }
+  .detail header { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+  .detail h3 { margin: 0; font-size: 17px; }
+  .close { background: none; border: 0; color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1; }
+  .kv { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 12px; margin: 12px 0; font-size: 12px; }
+  .kv span { color: var(--muted); } .kv b { font-variant-numeric: tabular-nums; }
+  .news { list-style: none; padding: 0; margin: 0; }
+  .news li { margin: 8px 0; font-size: 13px; }
+  .news a { color: var(--text); text-decoration: none; }
+  .news a:hover { color: var(--accent); text-decoration: underline; }
+  .news small { color: var(--muted); display: block; font-size: 11px; }
+  .note { color: var(--muted); font-size: 11px; margin-top: 24px; line-height: 1.6; }
+  .note a { color: var(--muted); }
+  .overlay { position: absolute; z-index: 500; left: 12px; bottom: 24px; background: rgba(17,24,39,.92);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 12px; }
+  .overlay .lg { display: flex; gap: 12px; margin-top: 8px; color: var(--muted); }
+  .overlay .lg i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+  .toggles { display: flex; gap: 6px; }
+  .mapwrap { position: relative; height: 100%; }
+  .leaflet-container { font: inherit; }
+  .leaflet-tooltip { background: var(--panel); color: var(--text); border: 1px solid var(--line); }
+  .leaflet-tooltip-top:before { border-top-color: var(--line); }
+  @media (max-width: 860px) {
+    .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 58vh auto; height: auto; }
+    .mapwrap { height: 58vh; }
+    aside { border-left: 0; border-top: 1px solid var(--line); padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="mapwrap">
+    <div id="map"></div>
+    <div class="overlay">
+      <div class="toggles">
+        <button data-layer="heat" class="on">熱度圖</button>
+        <button data-layer="dots" class="on">國家狀態</button>
+      </div>
+      <div class="lg"><span><i style="background:var(--calm)"></i>平穩</span><span><i style="background:var(--watch)"></i>關注</span><span><i style="background:var(--tense)"></i>緊張</span></div>
+    </div>
+  </div>
+  <aside>
+    <h1><span class="live"></span>全球時事熱度</h1>
+    <div class="sub" id="updated">載入中…</div>
+
+    <div class="tiles" id="tiles"></div>
+
+    <h2>媒體提及量（每小時）</h2>
+    <svg class="spark" id="spark" preserveAspectRatio="none"></svg>
+
+    <h2>全球事件類型</h2>
+    <div class="bars" id="types"></div>
+
+    <div class="detail" id="detail" hidden></div>
+
+    <h2>各國熱度排行</h2>
+    <div class="tabs" id="tabs">
+      <button data-f="all" class="on">全部</button>
+      <button data-f="3">緊張</button>
+      <button data-f="2">關注</button>
+      <button data-f="1">平穩</button>
+    </div>
+    <input type="search" id="q" placeholder="搜尋國家…">
+    <ul class="list" id="list"></ul>
+
+    <p class="note">
+      資料來源：<a href="https://www.gdeltproject.org/" target="_blank" rel="noopener">GDELT Project</a>，
+      統計最近幾小時全球新聞報導的事件，每小時自動更新。<br>
+      「熱度」＝媒體提及次數；「衝突比例」＝言語或實質衝突事件所佔比例；「情緒」越負面代表報導越負面。<br>
+      狀態為自動計算的參考指標，不代表正式評估。標題由網址推測而來，可能不完整。
+    </p>
+  </aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<script>
+const ZH = {
+  "United States":"美國","United Kingdom":"英國","India":"印度","Israel":"以色列","Canada":"加拿大","France":"法國",
+  "Nigeria":"奈及利亞","China":"中國","Ukraine":"烏克蘭","Russia":"俄羅斯","Iran":"伊朗","Australia":"澳洲",
+  "South Africa":"南非","Pakistan":"巴基斯坦","Ireland":"愛爾蘭","Saudi Arabia":"沙烏地阿拉伯","Philippines":"菲律賓",
+  "Ghana":"迦納","Kenya":"肯亞","Italy":"義大利","Bangladesh":"孟加拉","Norway":"挪威","Germany":"德國","Turkey":"土耳其",
+  "Yemen":"葉門","Japan":"日本","South Korea":"南韓","North Korea":"北韓","Taiwan":"台灣","Hong Kong":"香港",
+  "Spain":"西班牙","Portugal":"葡萄牙","Netherlands":"荷蘭","Belgium":"比利時","Switzerland":"瑞士","Austria":"奧地利",
+  "Sweden":"瑞典","Finland":"芬蘭","Denmark":"丹麥","Poland":"波蘭","Greece":"希臘","Hungary":"匈牙利","Romania":"羅馬尼亞",
+  "Czech Republic":"捷克","Serbia":"塞爾維亞","Belarus":"白俄羅斯","Georgia":"喬治亞","Armenia":"亞美尼亞","Azerbaijan":"亞塞拜然",
+  "Egypt":"埃及","Libya":"利比亞","Sudan":"蘇丹","South Sudan":"南蘇丹","Ethiopia":"衣索比亞","Somalia":"索馬利亞",
+  "Uganda":"烏干達","Tanzania":"坦尚尼亞","Zimbabwe":"辛巴威","Zambia":"尚比亞","Morocco":"摩洛哥","Algeria":"阿爾及利亞",
+  "Tunisia":"突尼西亞","Mali":"馬利","Niger":"尼日","Cameroon":"喀麥隆","Senegal":"塞內加爾","Malawi":"馬拉威",
+  "Democratic Republic of the Congo":"剛果民主共和國","Iraq":"伊拉克","Syria":"敘利亞","Lebanon":"黎巴嫩","Jordan":"約旦",
+  "Qatar":"卡達","United Arab Emirates":"阿聯","Kuwait":"科威特","Oman":"阿曼","Bahrain":"巴林","Afghanistan":"阿富汗",
+  "Sri Lanka":"斯里蘭卡","Nepal":"尼泊爾","Myanmar":"緬甸","Burma":"緬甸","Thailand":"泰國","Vietnam":"越南","Malaysia":"馬來西亞",
+  "Singapore":"新加坡","Indonesia":"印尼","Cambodia":"柬埔寨","New Zealand":"紐西蘭","Mexico":"墨西哥","Brazil":"巴西",
+  "Argentina":"阿根廷","Chile":"智利","Colombia":"哥倫比亞","Venezuela":"委內瑞拉","Peru":"秘魯","Ecuador":"厄瓜多",
+  "Bolivia":"玻利維亞","Cuba":"古巴","Haiti":"海地","Jamaica":"牙買加","Kazakhstan":"哈薩克","Uzbekistan":"烏茲別克",
+  "Mongolia":"蒙古","Fiji":"斐濟","Papua New Guinea":"巴布亞紐幾內亞","Occupied Palestinian Territory":"巴勒斯坦",
+  "West Bank":"約旦河西岸","Gaza Strip":"加薩走廊","Puerto Rico":"波多黎各","Guatemala":"瓜地馬拉","Honduras":"宏都拉斯",
+  "Nicaragua":"尼加拉瓜","Panama":"巴拿馬","Costa Rica":"哥斯大黎加","El Salvador":"薩爾瓦多","Dominican Republic":"多明尼加",
+  "Rwanda":"盧安達","Burundi":"蒲隆地","Mozambique":"莫三比克","Angola":"安哥拉","Namibia":"納米比亞","Botswana":"波札那",
+  "Iceland":"冰島","Estonia":"愛沙尼亞","Latvia":"拉脫維亞","Lithuania":"立陶宛","Slovakia":"斯洛伐克","Slovenia":"斯洛維尼亞",
+  "Croatia":"克羅埃西亞","Bulgaria":"保加利亞","Moldova":"摩爾多瓦","Cyprus":"賽普勒斯","Malta":"馬爾他","Luxembourg":"盧森堡",
+};
+const LEVEL_COLOR = { 1: "#14b8a6", 2: "#f59e0b", 3: "#ef4444" };
+const fmt = n => n.toLocaleString("zh-TW");
+const pct = x => (x * 100).toFixed(0) + "%";
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const zh = c => ZH[c.name] || c.name;
+const label = c => ZH[c.name] ? `${esc(ZH[c.name])}<small>${esc(c.name)}</small>` : esc(c.name);
+
+const map = L.map("map", { minZoom: 2, maxZoom: 7, zoomControl: true, attributionControl: true,
+  maxBounds: [[-75, -220], [85, 220]] }).setView([25, 15], 2);
+map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>')
+  .addAttribution('Natural Earth');
+// Country outlines drawn locally instead of tile images (no API key needed)
+fetch("https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json")
+  .then(r => r.json())
+  .then(topo => {
+    L.geoJSON(topojson.feature(topo, topo.objects.countries), {
+      interactive: false,
+      style: { color: "#2b3954", weight: 0.8, fillColor: "#151d2c", fillOpacity: 1 },
+    }).addTo(map).bringToBack();
+  });
+
+let data, heatLayer, dotLayer = L.layerGroup(), markers = {}, filter = "all", selected = null;
+const layers = { heat: null, dots: dotLayer };
+
+function trend(c) {
+  if (c.prev_mentions == null) return data.history.length > data.window_hours ? '<span class="trend up">新出現</span>' : "";
+  const d = (c.mentions - c.prev_mentions) / Math.max(c.prev_mentions, 1);
+  if (Math.abs(d) < 0.1) return '<span class="trend flat">— 持平</span>';
+  return d > 0 ? `<span class="trend up">▲ ${pct(d)}</span>` : `<span class="trend down">▼ ${pct(-d)}</span>`;
+}
+
+function renderHeader() {
+  const g = data.global, end = new Date(data.window_end);
+  document.getElementById("updated").textContent =
+    `最近 ${data.window_hours} 小時 · 資料截至 ${end.toLocaleString("zh-TW", { dateStyle: "medium", timeStyle: "short" })}`;
+  const tiles = [
+    [fmt(g.events), "事件數"], [fmt(g.mentions), "媒體提及"], [g.countries, "涉及國家"],
+    [pct(g.conflict), "衝突比例"], [g.tone.toFixed(1), "平均情緒"], [g.tense, "緊張地區"],
+  ];
+  document.getElementById("tiles").innerHTML = tiles.map(([v, k]) => `<div class="tile"><b>${v}</b><span>${k}</span></div>`).join("");
+
+  const max = g.top_types[0]?.mentions || 1;
+  document.getElementById("types").innerHTML = g.top_types.map(t =>
+    `<div class="row"><span>${esc(t.label)}</span><div class="bar"><i style="width:${t.mentions / max * 100}%"></i></div><span class="n">${fmt(t.mentions)}</span></div>`).join("");
+
+  const h = data.history, svg = document.getElementById("spark");
+  const W = 360, H = 56;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  if (h.length < 2) { svg.innerHTML = `<text x="0" y="32" fill="#8b96ab" font-size="12">累積更多小時的資料後會顯示趨勢線</text>`; return; }
+  const vals = h.map(x => x.mentions), lo = Math.min(...vals), hi = Math.max(...vals) || 1;
+  const pts = vals.map((v, i) => [i / (vals.length - 1) * W, H - 4 - (v - lo) / ((hi - lo) || 1) * (H - 10)]);
+  const line = pts.map(p => p.map(n => n.toFixed(1)).join(",")).join(" ");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = `<polygon points="0,${H} ${line} ${W},${H}" fill="rgba(96,165,250,.15)"/>
+    <polyline points="${line}" fill="none" stroke="#60a5fa" stroke-width="1.5" vector-effect="non-scaling-stroke"/>`;
+}
+
+function renderMap() {
+  if (heatLayer) map.removeLayer(heatLayer);
+  const maxW = data.heat[0]?.[2] || 1;
+  heatLayer = L.heatLayer(data.heat.map(([a, b, w]) => [a, b, Math.sqrt(w / maxW)]), {
+    radius: 18, blur: 22, maxZoom: 6, minOpacity: 0.25,
+    gradient: { 0.2: "#1e3a8a", 0.4: "#2563eb", 0.6: "#f59e0b", 0.8: "#f97316", 1: "#ef4444" },
+  });
+  layers.heat = heatLayer;
+  if (document.querySelector('[data-layer="heat"]').classList.contains("on")) heatLayer.addTo(map);
+
+  dotLayer.clearLayers(); markers = {};
+  const maxM = data.countries[0]?.mentions || 1;
+  for (const c of data.countries) {
+    const m = L.circleMarker([c.lat, c.lon], {
+      radius: 4 + Math.sqrt(c.mentions / maxM) * 22, color: LEVEL_COLOR[c.level], weight: 1.5,
+      fillColor: LEVEL_COLOR[c.level], fillOpacity: 0.25,
+    }).bindTooltip(`<b>${esc(zh(c))}</b> · ${esc(c.status)}<br>提及 ${fmt(c.mentions)} · 衝突 ${pct(c.conflict)}`, { direction: "top" })
+      .on("click", () => select(c.code, false));
+    m.addTo(dotLayer); markers[c.code] = m;
+  }
+  if (document.querySelector('[data-layer="dots"]').classList.contains("on")) dotLayer.addTo(map);
+}
+
+function renderList() {
+  const q = document.getElementById("q").value.trim().toLowerCase();
+  const rows = data.countries
+    .map((c, i) => ({ c, rank: i + 1 }))
+    .filter(({ c }) => (filter === "all" || String(c.level) === filter) &&
+      (!q || c.name.toLowerCase().includes(q) || (ZH[c.name] || "").includes(q)))
+    .slice(0, 60);
+  document.getElementById("list").innerHTML = rows.length ? rows.map(({ c, rank }) => `
+    <li data-code="${esc(c.code)}" class="${c.code === selected ? "sel" : ""}">
+      <span class="rank">${rank}</span>
+      <span class="nm">${label(c)}</span>
+      <span class="num">${fmt(c.mentions)}${trend(c)}</span>
+      <span class="badge l${c.level}">${esc(c.status)}</span>
+    </li>`).join("") : '<li style="cursor:default;color:var(--muted)">沒有符合的國家</li>';
+}
+
+function select(code, fly = true) {
+  const c = data.countries.find(x => x.code === code);
+  if (!c) return;
+  selected = code;
+  history.replaceState(null, "", "#" + code);
+  const max = c.top_types[0]?.mentions || 1;
+  const el = document.getElementById("detail");
+  el.hidden = false;
+  el.innerHTML = `
+    <header><div><h3>${label(c)}</h3><span class="badge l${c.level}">${esc(c.status)}</span></div>
+      <button class="close" aria-label="關閉">×</button></header>
+    <div class="kv">
+      <span>媒體提及</span><b>${fmt(c.mentions)}</b>
+      <span>事件數</span><b>${fmt(c.events)}</b>
+      <span>衝突比例</span><b>${pct(c.conflict)}</b>
+      <span>報導情緒</span><b>${c.tone.toFixed(1)}</b>
+      <span>合作/衝突指數</span><b>${c.goldstein.toFixed(1)}</b>
+      <span>前一時段比較</span><b>${trend(c) || "—"}</b>
+    </div>
+    <div class="bars">${c.top_types.map(t =>
+      `<div class="row"><span>${esc(t.label)}</span><div class="bar"><i style="width:${t.mentions / max * 100}%;background:${LEVEL_COLOR[c.level]}"></i></div><span class="n">${fmt(t.mentions)}</span></div>`).join("")}</div>
+    <h2 style="margin-top:14px">相關報導</h2>
+    <ul class="news">${c.headlines.map(n =>
+      `<li><a href="${esc(n.url)}" target="_blank" rel="noopener noreferrer">${esc(n.title)}</a><small>${esc(n.domain)}</small></li>`).join("")}</ul>`;
+  el.querySelector(".close").onclick = () => {
+    el.hidden = true; selected = null; history.replaceState(null, "", location.pathname); renderList();
+  };
+  renderList();
+  if (fly) map.flyTo([c.lat, c.lon], Math.max(map.getZoom(), 4), { duration: 0.8 });
+  markers[code]?.openTooltip();
+  if (window.innerWidth <= 860 || !fly) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+document.getElementById("list").addEventListener("click", e => {
+  const li = e.target.closest("li[data-code]");
+  if (li) select(li.dataset.code);
+});
+document.getElementById("tabs").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  filter = b.dataset.f;
+  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
+  renderList();
+});
+document.getElementById("q").addEventListener("input", renderList);
+document.querySelectorAll("[data-layer]").forEach(b => b.addEventListener("click", () => {
+  const layer = layers[b.dataset.layer];
+  b.classList.toggle("on");
+  b.classList.contains("on") ? layer.addTo(map) : map.removeLayer(layer);
+}));
+
+async function load() {
+  try {
+    const res = await fetch(`data/latest.json?t=${Date.now()}`);
+    data = await res.json();
+    renderHeader(); renderMap(); renderList();
+    if (selected) select(selected, false);
+    else if (location.hash.length > 1) select(decodeURIComponent(location.hash.slice(1)).toUpperCase());
+  } catch (err) {
+    document.getElementById("updated").textContent = "資料載入失敗，請稍後重新整理";
+    console.error(err);
+  }
+}
+load();
+setInterval(load, 10 * 60 * 1000);
+</script>
+</body>
+</html>
