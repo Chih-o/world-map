@@ -1,4 +1,4 @@
-"""Fetch TSMC ADR (TSM), TSMC (2330.TW), MediaTek (2454.TW) and SpaceX (SPCX), compute five
+"""Fetch TSMC ADR (TSM), TSMC (2330.TW), MediaTek (2454.TW) and SpaceX (SPCX), compute ten
 technical indicators, and write data/tsmc.json for tsmc.html.
 
 Each indicator gives a bullish (red) or bearish (green) signal, following the Taiwan convention;
@@ -66,7 +66,54 @@ def kd(highs, lows, closes, n=9):
     return k, d
 
 
-def analyse(closes, highs, lows):
+def wilder_sum(xs, n):
+    """Wilder smoothing of running totals, as used by DMI."""
+    s = sum(xs[:n])
+    out = [s]
+    for x in xs[n:]:
+        s = s - s / n + x
+        out.append(s)
+    return out
+
+
+def dmi(highs, lows, closes, n=14):
+    tr, pdm, ndm = [], [], []
+    for i in range(1, len(closes)):
+        up, down = highs[i] - highs[i - 1], lows[i - 1] - lows[i]
+        pdm.append(up if up > down and up > 0 else 0)
+        ndm.append(down if down > up and down > 0 else 0)
+        tr.append(max(highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1])))
+    s_tr, s_p, s_n = wilder_sum(tr, n), wilder_sum(pdm, n), wilder_sum(ndm, n)
+    pdi = [100 * p / t if t else 0 for p, t in zip(s_p, s_tr)]
+    ndi = [100 * m / t if t else 0 for m, t in zip(s_n, s_tr)]
+    dx = [100 * abs(p - m) / (p + m) if p + m else 0 for p, m in zip(pdi, ndi)]
+    adx = sum(dx[:n]) / n
+    for x in dx[n:]:
+        adx = (adx * (n - 1) + x) / n
+    return pdi[-1], ndi[-1], adx
+
+
+def psar(highs, lows, step=0.02, max_af=0.2):
+    """Parabolic SAR; returns (sar, uptrend)."""
+    up, af, ep, sar = True, step, highs[0], lows[0]
+    for i in range(1, len(highs)):
+        sar += af * (ep - sar)
+        if up:
+            sar = min(sar, lows[i - 1], lows[max(i - 2, 0)])
+            if lows[i] < sar:
+                up, sar, ep, af = False, ep, lows[i], step
+            elif highs[i] > ep:
+                ep, af = highs[i], min(af + step, max_af)
+        else:
+            sar = max(sar, highs[i - 1], highs[max(i - 2, 0)])
+            if highs[i] > sar:
+                up, sar, ep, af = True, ep, highs[i], step
+            elif lows[i] < ep:
+                ep, af = lows[i], min(af + step, max_af)
+    return sar, up
+
+
+def analyse(closes, highs, lows, vols):
     price = closes[-1]
     ma5, ma20, ma60 = sma(closes, 5)[-1], sma(closes, 20)[-1], sma(closes, 60)[-1]
 
@@ -85,6 +132,17 @@ def analyse(closes, highs, lows):
     upper, lower = mid + 2 * sd, mid - 2 * sd
     pct_b = (price - lower) / (upper - lower) if upper != lower else 0.5
 
+    pdi, ndi, adx = dmi(highs, lows, closes)
+    sar, sar_up = psar(highs, lows)
+    hh, ll = max(highs[-14:]), min(lows[-14:])
+    wr = (hh - price) / (hh - ll) * -100 if hh != ll else -50
+    roc = (price / closes[-13] - 1) * 100
+    obv = [0.0]
+    for i in range(1, len(closes)):
+        sign = 1 if closes[i] > closes[i - 1] else -1 if closes[i] < closes[i - 1] else 0
+        obv.append(obv[-1] + sign * vols[i])
+    obv_ma = sma(obv, 20)[-1]
+
     def fmt(x):
         return f"{x:,.2f}"
 
@@ -97,16 +155,16 @@ def analyse(closes, highs, lows):
             "key": "ma", "name": "均線 MA", "full": "Moving Average（20 日 vs 60 日）",
             "bull": ma20 > ma60,
             "value": f"MA20 {fmt(ma20)}／MA60 {fmt(ma60)}",
-            "reason": ("20 日均線在 60 日均線之上，中期趨勢向上" if ma20 > ma60
-                       else "20 日均線在 60 日均線之下，中期趨勢向下"),
+            "reason": ("MA20 在 MA60 之上，中期趨勢向上" if ma20 > ma60
+                       else "MA20 在 MA60 之下，中期趨勢向下"),
             "note": f"MA5 {fmt(ma5)}；股價{'高於' if price > ma5 else '低於'} 5 日線",
         },
         {
             "key": "macd", "name": "MACD", "full": "指數平滑異同移動平均（12, 26, 9）",
             "bull": hist > 0,
             "value": f"DIF {fmt(dif_v)}／DEA {fmt(dea_v)}",
-            "reason": ("DIF 在訊號線之上（柱狀體為正），動能偏多" if hist > 0
-                       else "DIF 在訊號線之下（柱狀體為負），動能偏空"),
+            "reason": ("DIF 在訊號線之上，動能偏多" if hist > 0
+                       else "DIF 在訊號線之下，動能偏空"),
             "note": f"柱狀體 {hist:+,.2f}",
         },
         {
@@ -130,9 +188,44 @@ def analyse(closes, highs, lows):
             "reason": "股價在中軌之上，位於強勢區" if price > mid else "股價在中軌之下，位於弱勢區",
             "note": bb_note or f"通道位置 {pct_b * 100:.0f}%",
         },
+        {
+            "key": "dmi", "name": "DMI", "full": "趨向指標（14 日）",
+            "bull": pdi > ndi,
+            "value": f"+DI {pdi:.1f}／−DI {ndi:.1f}",
+            "reason": "+DI 在 −DI 之上，多方主導" if pdi > ndi else "−DI 在 +DI 之上，空方主導",
+            "note": f"ADX {adx:.1f}，" + ("趨勢明確" if adx >= 25 else "趨勢不明顯"),
+        },
+        {
+            "key": "sar", "name": "SAR", "full": "拋物線指標（0.02, 0.2）",
+            "bull": sar_up,
+            "value": f"SAR {fmt(sar)}",
+            "reason": "股價在 SAR 之上，維持上升趨勢" if sar_up else "股價在 SAR 之下，維持下降趨勢",
+            "note": f"{'跌破' if sar_up else '突破'} {fmt(sar)} 將轉{'空' if sar_up else '多'}",
+        },
+        {
+            "key": "wr", "name": "威廉 %R", "full": "Williams %R（14 日）",
+            "bull": wr > -50,
+            "value": f"{wr:.1f}",
+            "reason": "位於區間上半部，買方較強" if wr > -50 else "位於區間下半部，賣方較強",
+            "note": "超買區" if wr >= -20 else "超賣區" if wr <= -80 else "",
+        },
+        {
+            "key": "roc", "name": "ROC", "full": "變動率／動量（12 日）",
+            "bull": roc > 0,
+            "value": f"{roc:+.2f}%",
+            "reason": "股價高於 12 日前，動量向上" if roc > 0 else "股價低於 12 日前，動量向下",
+            "note": "",
+        },
+        {
+            "key": "obv", "name": "OBV", "full": "能量潮（vs 20 日均線）",
+            "bull": obv[-1] > obv_ma,
+            "value": f"OBV {obv[-1] / 1e6:,.1f}M／均線 {obv_ma / 1e6:,.1f}M",
+            "reason": "OBV 在均線之上，資金流入" if obv[-1] > obv_ma else "OBV 在均線之下，資金流出",
+            "note": "",
+        },
     ]
     bulls = sum(t["bull"] for t in tools)
-    advice = "買入" if bulls >= 4 else "持有" if bulls >= 2 else "賣出"
+    advice = "買入" if bulls >= 7 else "持有" if bulls >= 4 else "賣出"
     series = {"ma20": sma(closes, 20)[-CHART_DAYS:], "ma60": sma(closes, 60)[-CHART_DAYS:]}
     return tools, bulls, advice, series
 
@@ -144,12 +237,13 @@ def stock(symbol, name, exchange, currency, market):
             zip(res["timestamp"], q["close"], q["high"], q["low"], q["volume"])
             if None not in (c, h, l)]
     ts, closes, highs, lows, vols = (list(x) for x in zip(*rows))
+    vols = [v or 0 for v in vols]
     # During trading the last daily bar can lag the live quote; use the live price
     live = meta.get("regularMarketPrice")
     if live and meta.get("regularMarketTime", 0) >= ts[-1]:
         closes[-1] = live
         highs[-1], lows[-1] = max(highs[-1], live), min(lows[-1], live)
-    tools, bulls, advice, series = analyse(closes, highs, lows)
+    tools, bulls, advice, series = analyse(closes, highs, lows, vols)
     prev = closes[-2]
     period = meta.get("currentTradingPeriod", {}).get("regular", {})
     now = datetime.now(timezone.utc).timestamp()
@@ -198,7 +292,7 @@ def main():
     DATA.mkdir(exist_ok=True)
     (DATA / "tsmc.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), "utf-8")
     for s in out["stocks"].values():
-        print(f"{s['symbol']}: {s['price']:.2f}  bullish {s['bulls']}/5 -> {s['advice']}")
+        print(f"{s['symbol']}: {s['price']:.2f}  bullish {s['bulls']}/10 -> {s['advice']}")
     if "premium" in out:
         print(f"ADR premium {out['premium']['pct']:+.2f}% (USD/TWD {out['usdtwd']:.3f})")
 

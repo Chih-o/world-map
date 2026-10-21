@@ -55,11 +55,11 @@
   .chart-lg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 10px; color: var(--muted); margin-top: 2px; }
   .chart-lg i { display: inline-block; width: 12px; height: 2px; margin-right: 4px; vertical-align: 3px; }
 
-  .signals { display: flex; flex-direction: column; gap: 5px; }
-  .sig { display: grid; grid-template-columns: 82px 28px minmax(0, 1fr); gap: 10px; align-items: center;
-    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  .signals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+  .sig { display: grid; grid-template-columns: 64px 24px minmax(0, 1fr); gap: 8px; align-items: center;
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
   .sig .tool { font-weight: 700; font-size: 13px; }
-  .light { width: 22px; height: 22px; border-radius: 50%; justify-self: center; }
+  .light { width: 20px; height: 20px; border-radius: 50%; justify-self: center; }
   .light.bull { background: radial-gradient(circle at 35% 35%, #fca5a5, var(--bull) 55%, #b91c1c); box-shadow: 0 0 10px rgba(239,68,68,.6); }
   .light.bear { background: radial-gradient(circle at 35% 35%, #86efac, var(--bear) 55%, #15803d); box-shadow: 0 0 10px rgba(34,197,94,.6); }
   .sig .why { font-size: 12px; min-width: 0; }
@@ -74,7 +74,7 @@
   .advice .lab { font-size: 10px; color: var(--muted); }
   .advice .word { font-size: 26px; font-weight: 800; letter-spacing: 3px; line-height: 1.1; }
   .advice.buy .word { color: var(--bull); } .advice.hold .word { color: var(--hold); } .advice.sell .word { color: var(--bear); }
-  .dots { display: flex; gap: 5px; margin-bottom: 3px; }
+  .dots { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 3px; }
   .dots i { width: 12px; height: 12px; border-radius: 50%; }
   .dots i.bull { background: var(--bull); } .dots i.bear { background: var(--bear); }
   .advice .sum { font-size: 12px; } .advice .rule { font-size: 10px; color: var(--muted); }
@@ -85,6 +85,7 @@
   @media (max-width: 1100px) { .grid { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 520px) {
     .head { grid-template-columns: minmax(0, 1fr); } .px { text-align: left; }
+    .signals { grid-template-columns: minmax(0, 1fr); }
     .sig { grid-template-columns: minmax(0, 1fr) 26px; } .sig .why { grid-column: 1 / -1; }
   }
 </style>
@@ -113,9 +114,11 @@
   </div>
 
   <p class="disclaimer">
-    ⚠️ <b>僅供參考，不構成投資建議。</b>燈號與建議由程式依技術指標自動計算：5 個指標中紅燈（漲勢）4 個以上為「買入」、2–3 個為「持有」、1 個以下為「賣出」。
+    ⚠️ <b>僅供參考，不構成投資建議。</b>燈號與建議由程式依技術指標自動計算：10 個指標中紅燈（漲勢）7 個以上為「買入」、4–6 個為「持有」、3 個以下為「賣出」。
     技術分析只反映過去價格走勢，無法預測財報、法說會、國際情勢等事件。投資前請自行判斷並控制風險。<br>
-    5 個指標：均線 MA（20 日 vs 60 日）、MACD（12, 26, 9）、RSI（14 日）、KD（9 日）、布林通道（20 日, 2 倍標準差），皆以日線計算。
+    10 個指標皆以日線計算：均線 MA（20 日 vs 60 日）、MACD（12, 26, 9）、RSI（14 日）、KD（9 日）、布林通道（20 日, 2 倍標準差）、
+    DMI 趨向指標（14 日，+DI vs −DI）、SAR 拋物線指標（0.02, 0.2）、威廉 %R（14 日，以 −50 為界）、ROC 動量（12 日）、OBV 能量潮（vs 20 日均線）。
+    滑鼠移到指標上可看完整名稱。
     資料來源：Yahoo Finance，報價可能延遲約 15–20 分鐘。本頁顏色：紅＝漲、綠＝跌（與台股看盤慣例相同）。
     1 股台積電 ADR ＝ 5 股台股；ADR 溢價＝ADR 股價 ÷（台股股價 × 5 ÷ 美元匯率）− 1。
     SpaceX 於 2026 年 6 月上市，歷史資料較短，「上市以來」最高最低取代 52 週數值。
@@ -190,8 +193,8 @@ function render(id, s, extra) {
       <div><div class="lab">投資建議</div><div class="word">${esc(s.advice)}</div></div>
       <div>
         <div class="dots">${s.tools.map(tl => `<i class="${tl.bull ? "bull" : "bear"}" title="${esc(tl.name)}"></i>`).join("")}</div>
-        <div class="sum">紅燈 <b>${s.bulls}</b> / 5 個指標顯示漲勢</div>
-        <div class="rule">規則：紅燈（漲勢）≥ 4 買入 · 2–3 持有 · ≤ 1 賣出</div>
+        <div class="sum">紅燈 <b>${s.bulls}</b> / ${s.tools.length} 個指標顯示漲勢</div>
+        <div class="rule">規則：紅燈（漲勢）≥ 7 買入 · 4–6 持有 · ≤ 3 賣出</div>
       </div>
     </div>`;
 }
