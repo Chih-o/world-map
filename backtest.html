@@ -86,7 +86,7 @@
   <div class="sub" id="rule-line">載入中…</div>
 
   <section class="card" style="margin-top:16px">
-    <h2>四檔比較（每次 100 股，已扣手續費與稅）</h2>
+    <h2>四檔比較（已扣手續費與稅）</h2>
     <div class="desc">點股票名稱可跳到該股票的詳細資料。</div>
     <div class="tablewrap"><table class="days overview" id="overview"></table></div>
   </section>
@@ -186,12 +186,12 @@ function drawCharts(code) {
 }
 
 function stockSection(code) {
-  const bt = all.stocks[code], s = bt.summary, lot = all.rules.lot;
+  const bt = all.stocks[code], s = bt.summary, { buy_qty: bq, sell_qty: sq } = all.rules;
   const tiles = [
     ["已實現損益", money(s.realized), cls(s.realized), `賣出 ${s.sells} 次的結果`],
     ["未實現損益", money(s.unrealized), cls(s.unrealized), `尚持有 ${int(s.shares_held)} 股`],
     ["手續費＋交易稅", "−" + int(s.fees), "down", "已計入總損益"],
-    ["交易次數", `買 ${s.buys} / 賣 ${s.sells}`, "", `每次 ${lot} 股`],
+    ["交易次數", `買 ${s.buys} / 賣 ${s.sells}`, "", `每次買 ${bq} 股、賣 ${sq} 股`],
     ["目前持股", `${int(s.shares_held)} 股`, "", s.avg_cost ? `平均成本 ${px(s.avg_cost)}` : "無持股"],
     ["最新收盤價", px(s.last_close), "", bt.end],
     ["最高投入金額", int(s.max_cost), "", "同時持有股票的最大成本"],
@@ -207,15 +207,15 @@ function stockSection(code) {
       <td class="${cls(d.pnl)}">${money(d.pnl)}</td><td class="${cls(d.cum)}">${money(d.cum)}</td></tr>`).join("");
   return `<section class="stock" id="s-${esc(code)}">
     <h2 class="stock-title">${esc(bt.name)}（${esc(code)}）</h2>
-    <div class="sub">回測期間 ${esc(bt.start)} ～ ${esc(bt.end)}，共 ${s.trading_days} 個交易日 · 每次 ${lot} 股，約 ${int(s.last_close * lot)} 元</div>
+    <div class="sub">回測期間 ${esc(bt.start)} ～ ${esc(bt.end)}，共 ${s.trading_days} 個交易日 · 每次買進 ${bq} 股（約 ${int(s.last_close * bq)} 元）、賣出 ${sq} 股</div>
     <div class="hero">
       <div class="card verdict">
         <div class="lab">到今天的總損益（已扣手續費與交易稅）</div>
         <div class="big ${cls(s.total)}">${money(s.total)} 元</div>
         <div class="word ${cls(s.total)}">${s.total > 0 ? "賺錢" : s.total < 0 ? "賠錢" : "不賺不賠"}</div>
         <p>同期間比較：<br>
-          · 照建議做（每次 ${lot} 股）：<b class="${cls(s.follow_total)}">${money(s.follow_total)} 元</b><br>
-          · 第一天 10 點買 ${lot} 股持有到今天：<b class="${cls(s.buy_and_hold)}">${money(s.buy_and_hold)} 元</b></p>
+          · 照建議做（買入就買 ${bq} 股、賣出就賣 ${sq} 股）：<b class="${cls(s.follow_total)}">${money(s.follow_total)} 元</b><br>
+          · 第一天 10 點買 ${bq} 股持有到今天：<b class="${cls(s.buy_and_hold)}">${money(s.buy_and_hold)} 元</b></p>
       </div>
       <div class="tiles">${tiles.map(([k, v, c, sub]) =>
         `<div class="tile"><span>${k}</span><b class="${c}">${v}</b><small>${esc(sub)}</small></div>`).join("")}</div>
@@ -232,7 +232,7 @@ function stockSection(code) {
     </section>
     <section class="card chart-card">
       <h2>股價與買賣點</h2>
-      <div class="desc">線為每日收盤價；▲ 為上午 10 點買進 ${lot} 股、▼ 為賣出 ${lot} 股的價格。</div>
+      <div class="desc">線為每日收盤價；▲ 為上午 10 點買進 ${bq} 股、▼ 為賣出 ${sq} 股的價格。</div>
       <div class="chart" id="price-${esc(code)}"></div>
       <div class="legend"><span><i style="background:#94a3b8;height:2px;vertical-align:3px"></i>收盤價</span>
         <span><span class="up">▲</span> 買進</span><span><span class="down">▼</span> 賣出</span></div>
@@ -250,15 +250,15 @@ function stockSection(code) {
 }
 
 function render() {
-  const lot = all.rules.lot;
+  const { buy_qty: bq, sell_qty: sq } = all.rules;
   document.getElementById("rule-line").textContent =
-    `近 ${all.months} 個月到今天 · 每天上午 10 點反向操作：建議「賣出」就買進 ${lot} 股，建議「買入」就賣出 ${lot} 股（無持股不賣）`;
+    `近 ${all.months} 個月到今天 · 每天上午 10 點反向操作：建議「賣出」就買進 ${bq} 股，建議「買入」就賣出 ${sq} 股（無持股不賣）`;
   document.getElementById("overview").innerHTML = `
-    <tr><th>股票</th><th>每次 ${lot} 股約</th><th>反向操作</th><th>照建議做</th><th>買 ${lot} 股持有</th><th>買／賣次數</th><th>目前持股</th><th>最高投入</th></tr>
+    <tr><th>股票</th><th>買 ${bq} 股約</th><th>反向操作</th><th>照建議做</th><th>買 ${bq} 股持有</th><th>買／賣次數</th><th>目前持股</th><th>最高投入</th></tr>
     ${all.order.map(c => { const st = all.stocks[c], s = st.summary; return `
       <tr>
         <td><a href="#s-${esc(c)}">${esc(st.name)}</a> <span class="sub">${esc(c)}</span></td>
-        <td>${int(s.last_close * lot)}</td>
+        <td>${int(s.last_close * bq)}</td>
         <td class="${cls(s.total)}"><b>${money(s.total)}</b></td>
         <td class="${cls(s.follow_total)}">${money(s.follow_total)}</td>
         <td class="${cls(s.buy_and_hold)}">${money(s.buy_and_hold)}</td>
@@ -272,10 +272,11 @@ function render() {
   const r = all.rules;
   document.getElementById("note").innerHTML = `
     <b>回測規則：</b>每天開盤前，用前一個交易日收盤為止的日線計算 10 個指標（MA、MACD、RSI、KD、布林通道、DMI、SAR、威廉 %R、ROC、OBV），
-    紅燈 ≥ 7 為「買入」、4–6「持有」、≤ 3「賣出」。上午 10 點<b>反向操作</b>：建議「賣出」就買進 ${r.lot} 股；建議「買入」就賣出 ${r.lot} 股，手上沒有股票就不賣（不放空）；「持有」不動作。<br>
+    紅燈 ≥ 7 為「買入」、4–6「持有」、≤ 3「賣出」。上午 10 點<b>反向操作</b>：建議「賣出」就買進 ${r.buy_qty} 股；建議「買入」就賣出 ${r.sell_qty} 股，手上沒有股票就不賣（不放空）；「持有」不動作。
+    買多賣少，所以持股會比「每次買賣一樣多」時累積得更快。<br>
     <b>成本：</b>手續費 ${(r.fee_rate * 100).toFixed(4)}%（每筆最低 ${r.fee_min} 元，未計折扣）、賣出交易稅 ${(r.tax_rate * 100).toFixed(1)}%。
-    每次只交易 ${r.lot} 股，金額小的股票（例如 0050）手續費常以最低 ${r.fee_min} 元計算，對損益影響較大。<br>
-    <b>成交價：</b>用 Yahoo Finance 小時線 10:00 的價格。實際上 100 股屬於「盤中零股」交易，成交價可能和整股略有差異。<br>
+    每次只交易幾百股，金額小的股票（例如 0050）手續費常以最低 ${r.fee_min} 元計算，對損益影響較大。<br>
+    <b>成交價：</b>用 Yahoo Finance 小時線 10:00 的價格。實際上不到 1,000 股屬於「盤中零股」交易，成交價可能和整股略有差異。<br>
     <b>注意：</b>歷史回測結果不代表未來表現，僅供學習參考，不構成投資建議。資料產生時間：${new Date(all.generated).toLocaleString("zh-TW")}`;
   if (location.hash) document.querySelector(location.hash)?.scrollIntoView();
 }

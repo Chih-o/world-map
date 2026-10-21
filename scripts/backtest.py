@@ -1,9 +1,9 @@
 """Backtest a contrarian use of the ten-indicator signal on several Taiwan listings over the last three months.
 
 Each trading day the signal is computed from daily bars up to the previous close (no look-ahead).
-At 10:00 the strategy trades one lot (1,000 shares) against the signal: 賣出 -> buy one lot,
-買入 -> sell one lot if any is held (no short selling), 持有 -> nothing. Taiwan fees are included.
-For comparison it also reports following the signal 100 shares at a time, and buying 100 shares and holding.
+At 10:00 the strategy trades against the signal: 賣出 -> buy BUY_QTY shares, 買入 -> sell SELL_QTY
+shares if any are held (no short selling), 持有 -> nothing. Taiwan fees are included.
+For comparison it also reports following the signal with the same sizes, and buying BUY_QTY shares and holding.
 Writes data/backtest.json.
 """
 import json
@@ -23,7 +23,7 @@ STOCKS = [
     ("5274", "5274.TWO", "信驊"),
     ("0050", "0050.TW", "元大台灣50"),
 ]
-LOT = 100  # shares per trade (odd-lot trading)
+BUY_QTY, SELL_QTY = 200, 100  # shares per trade (odd-lot trading)
 MONTHS = 3
 FEE_RATE, FEE_MIN, TAX_RATE = 0.001425, 20, 0.003
 TW = timezone(timedelta(hours=8))
@@ -39,25 +39,26 @@ def fee(amount, sell):
 
 
 def simulate(signals, rule):
-    """signals: list of (date, advice, price at 10:00, close). LOT shares per trade."""
+    """signals: list of (date, advice, price at 10:00, close). BUY_QTY / SELL_QTY shares per trade."""
     shares = cost = cash = realized = fees = prev = max_cost = 0.0
     out = []
     for d, advice, price, close in signals:
         do, action, day_fee = rule.get(advice), "—", 0
         if do == "buy":
-            day_fee = fee(price * LOT, sell=False)
-            cash -= price * LOT + day_fee
-            cost += price * LOT
-            shares += LOT
-            action = f"買進 {LOT} 股"
-        elif do == "sell" and shares >= LOT:
+            day_fee = fee(price * BUY_QTY, sell=False)
+            cash -= price * BUY_QTY + day_fee
+            cost += price * BUY_QTY
+            shares += BUY_QTY
+            action = f"買進 {BUY_QTY} 股"
+        elif do == "sell" and shares > 0:
+            qty = min(SELL_QTY, shares)
             avg = cost / shares
-            day_fee = fee(price * LOT, sell=True)
-            cash += price * LOT - day_fee
-            realized += (price - avg) * LOT
-            cost -= avg * LOT
-            shares -= LOT
-            action = f"賣出 {LOT} 股"
+            day_fee = fee(price * qty, sell=True)
+            cash += price * qty - day_fee
+            realized += (price - avg) * qty
+            cost -= avg * qty
+            shares -= qty
+            action = f"賣出 {int(qty)} 股"
         elif do == "sell":
             action = "無持股，不動作"
         fees += day_fee
@@ -107,7 +108,8 @@ def backtest(symbol, name, start):
     _, follow = simulate(signals, STRATEGIES["follow"])
 
     first, last_close = days[0]["price10"], days[-1]["close"]
-    buy_and_hold = (last_close - first) * LOT - fee(first * LOT, False) - fee(last_close * LOT, True)
+    buy_and_hold = ((last_close - first) * BUY_QTY - fee(first * BUY_QTY, False)
+                    - fee(last_close * BUY_QTY, True))
     summary.update({
         "last_close": last_close,
         "trading_days": len(days),
@@ -146,7 +148,7 @@ def main():
     out = {
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "months": MONTHS,
-        "rules": {"lot": LOT, "fee_rate": FEE_RATE, "fee_min": FEE_MIN, "tax_rate": TAX_RATE},
+        "rules": {"buy_qty": BUY_QTY, "sell_qty": SELL_QTY, "fee_rate": FEE_RATE, "fee_min": FEE_MIN, "tax_rate": TAX_RATE},
         "order": list(stocks),
         "stocks": stocks,
     }
