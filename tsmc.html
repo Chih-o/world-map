@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>台積電技術分析</title>
+<title>個股技術分析</title>
 <style>
   :root {
     --bg: #0b0f17; --panel: #111827; --panel-2: #1a2232; --line: #263044;
@@ -12,71 +12,78 @@
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", sans-serif; }
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", sans-serif; }
   a { color: var(--accent); }
-  .wrap { max-width: 1280px; margin: 0 auto; padding: 16px; }
-  .top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-  h1 { font-size: 20px; margin: 0; }
-  .top .meta { color: var(--muted); font-size: 12px; }
+  .wrap { max-width: 1600px; margin: 0 auto; padding: 14px; }
+  .top { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  h1 { font-size: 19px; margin: 0; }
+  .mode { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .mode .live { color: var(--bull); font-weight: 600; }
+  .mode .live i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--bull);
+    margin-right: 5px; vertical-align: 0; animation: pulse 1.4s infinite; }
+  .bar { height: 2px; background: var(--panel-2); border-radius: 2px; margin-top: 6px; overflow: hidden; width: 220px; max-width: 100%; }
+  .bar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width 1s linear; }
+  @keyframes pulse { 50% { opacity: .3; } }
   .strip { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 12px; color: var(--muted); }
   .chip b { color: var(--text); font-variant-numeric: tabular-nums; }
-  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); align-items: center; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); align-items: center; flex-wrap: wrap; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
 
-  section.half { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px;
-    margin-bottom: 16px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 20px; min-height: calc(50vh - 50px); }
-  .tag { font-size: 11px; color: var(--muted); letter-spacing: .5px; }
-  .name { font-size: 22px; font-weight: 700; margin: 2px 0 0; }
-  .name small { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 6px; }
-  .price { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 6px; line-height: 1.1; }
-  .price small { font-size: 14px; color: var(--muted); font-weight: 400; margin-left: 4px; }
-  .chg { font-size: 15px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: end; }
+  .tag { font-size: 11px; color: var(--muted); }
+  .name { font-size: 19px; font-weight: 700; }
+  .name small { font-size: 12px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+  .px { text-align: right; }
+  .price { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; border-radius: 6px; padding: 0 4px; }
+  .price small { font-size: 12px; color: var(--muted); font-weight: 400; margin-left: 3px; }
+  .price.flash-up { animation: flashUp 1.2s; } .price.flash-down { animation: flashDown 1.2s; }
+  @keyframes flashUp { 0% { background: rgba(239,68,68,.45); } 100% { background: transparent; } }
+  @keyframes flashDown { 0% { background: rgba(34,197,94,.45); } 100% { background: transparent; } }
+  .chg { font-size: 14px; font-variant-numeric: tabular-nums; }
   .up { color: var(--bull); } .down { color: var(--bear); } .flat { color: var(--muted); }
-  .status { font-size: 12px; color: var(--muted); margin-top: 4px; }
-  .status i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); margin-right: 5px; vertical-align: 1px; }
-  .status.open i { background: var(--bull); animation: pulse 1.6s infinite; }
-  @keyframes pulse { 50% { opacity: .3; } }
-  .facts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 16px; font-size: 12px; margin-top: 10px; }
-  .facts span { color: var(--muted); } .facts b { font-variant-numeric: tabular-nums; text-align: right; }
-  .chart { width: 100%; height: 190px; display: block; margin-top: 12px; }
-  .chart-lg { display: flex; gap: 14px; font-size: 11px; color: var(--muted); margin-top: 4px; }
-  .chart-lg i { display: inline-block; width: 14px; height: 2px; margin-right: 4px; vertical-align: 3px; }
+  .status { font-size: 11px; color: var(--muted); }
+  .status i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); margin-right: 4px; vertical-align: 1px; }
+  .status.open i { background: var(--accent); animation: pulse 1.6s infinite; }
+  .facts { display: flex; flex-wrap: wrap; gap: 2px 16px; font-size: 11px; color: var(--muted); }
+  .facts b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; margin-left: 4px; }
+  .chart { width: 100%; height: 96px; display: block; }
+  .chart-lg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .chart-lg i { display: inline-block; width: 12px; height: 2px; margin-right: 4px; vertical-align: 3px; }
 
-  .signals { display: flex; flex-direction: column; gap: 8px; }
-  .sig { display: grid; grid-template-columns: 190px 44px minmax(0, 1fr); gap: 12px; align-items: center;
-    background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
-  .sig .tool b { display: block; font-size: 14px; }
-  .sig .tool span { font-size: 11px; color: var(--muted); }
-  .light { width: 30px; height: 30px; border-radius: 50%; justify-self: center; position: relative; }
-  .light.bull { background: radial-gradient(circle at 35% 35%, #fca5a5, var(--bull) 55%, #b91c1c); box-shadow: 0 0 14px rgba(239,68,68,.65); }
-  .light.bear { background: radial-gradient(circle at 35% 35%, #86efac, var(--bear) 55%, #15803d); box-shadow: 0 0 14px rgba(34,197,94,.65); }
-  .sig .why { font-size: 13px; }
-  .sig .why .v { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-  .sig .why .lbl { font-weight: 700; margin-right: 6px; }
-  .sig .why .n { color: var(--hold); font-size: 12px; margin-left: 6px; }
+  .signals { display: flex; flex-direction: column; gap: 5px; }
+  .sig { display: grid; grid-template-columns: 82px 28px minmax(0, 1fr); gap: 10px; align-items: center;
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  .sig .tool { font-weight: 700; font-size: 13px; }
+  .light { width: 22px; height: 22px; border-radius: 50%; justify-self: center; }
+  .light.bull { background: radial-gradient(circle at 35% 35%, #fca5a5, var(--bull) 55%, #b91c1c); box-shadow: 0 0 10px rgba(239,68,68,.6); }
+  .light.bear { background: radial-gradient(circle at 35% 35%, #86efac, var(--bear) 55%, #15803d); box-shadow: 0 0 10px rgba(34,197,94,.6); }
+  .sig .why { font-size: 12px; min-width: 0; }
+  .sig .why .lbl { font-weight: 700; margin-right: 5px; }
+  .sig .why .v { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sig .why .n { color: var(--hold); }
 
-  .advice { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; margin-top: 12px;
-    border-radius: 12px; padding: 14px 16px; border: 1px solid; }
+  .advice { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; border-radius: 10px; padding: 10px 14px; border: 1px solid; margin-top: auto; }
   .advice.buy { border-color: var(--bull); background: rgba(239,68,68,.08); }
   .advice.hold { border-color: var(--hold); background: rgba(245,158,11,.08); }
   .advice.sell { border-color: var(--bear); background: rgba(34,197,94,.08); }
-  .advice .word { font-size: 34px; font-weight: 800; letter-spacing: 4px; line-height: 1; }
+  .advice .lab { font-size: 10px; color: var(--muted); }
+  .advice .word { font-size: 26px; font-weight: 800; letter-spacing: 3px; line-height: 1.1; }
   .advice.buy .word { color: var(--bull); } .advice.hold .word { color: var(--hold); } .advice.sell .word { color: var(--bear); }
-  .advice .lab { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
-  .dots { display: flex; gap: 6px; margin: 2px 0 6px; }
-  .dots i { width: 14px; height: 14px; border-radius: 50%; }
+  .dots { display: flex; gap: 5px; margin-bottom: 3px; }
+  .dots i { width: 12px; height: 12px; border-radius: 50%; }
   .dots i.bull { background: var(--bull); } .dots i.bear { background: var(--bear); }
-  .advice .rule { font-size: 11px; color: var(--muted); }
+  .advice .sum { font-size: 12px; } .advice .rule { font-size: 10px; color: var(--muted); }
 
-  .disclaimer { color: var(--muted); font-size: 12px; line-height: 1.7; border-top: 1px solid var(--line); padding-top: 12px; }
-  .err { color: var(--bear); padding: 40px; text-align: center; }
+  .disclaimer { color: var(--muted); font-size: 12px; line-height: 1.7; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 14px; }
+  .err { color: var(--muted); padding: 40px; text-align: center; }
 
-  @media (max-width: 900px) {
-    section.half { grid-template-columns: minmax(0, 1fr); min-height: 0; }
-    .sig { grid-template-columns: minmax(0, 1fr) 36px; }
-    .sig .why { grid-column: 1 / -1; }
-    .light { width: 26px; height: 26px; }
+  @media (max-width: 1100px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 520px) {
+    .head { grid-template-columns: minmax(0, 1fr); } .px { text-align: left; }
+    .sig { grid-template-columns: minmax(0, 1fr) 26px; } .sig .why { grid-column: 1 / -1; }
   }
 </style>
 </head>
@@ -84,8 +91,9 @@
 <div class="wrap">
   <div class="top">
     <div>
-      <h1>台積電 ADR ／ 台股 技術分析</h1>
-      <div class="meta" id="updated">載入中…</div>
+      <h1>台積電 ADR ／ 台積電 ／ 聯發科 ／ SpaceX 技術分析</h1>
+      <div class="mode" id="mode">載入中…</div>
+      <div class="bar"><i id="bar"></i></div>
     </div>
     <div class="strip" id="strip"></div>
     <div class="legend">
@@ -95,103 +103,143 @@
     </div>
   </div>
 
-  <section class="half" id="adr"><div class="err">載入中…</div></section>
-  <section class="half" id="tw"><div class="err">載入中…</div></section>
+  <div class="grid">
+    <section class="panel" id="adr"><div class="err">載入中…</div></section>
+    <section class="panel" id="tw"><div class="err">載入中…</div></section>
+    <section class="panel" id="mtk"><div class="err">載入中…</div></section>
+    <section class="panel" id="spcx"><div class="err">載入中…</div></section>
+  </div>
 
   <p class="disclaimer">
     ⚠️ <b>僅供參考，不構成投資建議。</b>燈號與建議由程式依技術指標自動計算：5 個指標中紅燈（漲勢）4 個以上為「買入」、2–3 個為「持有」、1 個以下為「賣出」。
     技術分析只反映過去價格走勢，無法預測財報、法說會、國際情勢等事件。投資前請自行判斷並控制風險。<br>
-    資料來源：Yahoo Finance（日線，約每 30 分鐘更新，可能延遲）。本頁顏色：紅＝漲、綠＝跌（與台股看盤慣例相同）。
-    1 股 ADR ＝ 5 股台股；ADR 溢價＝ADR 股價 ÷（台股股價 × 5 ÷ 美元匯率）− 1。
+    5 個指標：均線 MA（20 日 vs 60 日）、MACD（12, 26, 9）、RSI（14 日）、KD（9 日）、布林通道（20 日, 2 倍標準差），皆以日線計算。
+    資料來源：Yahoo Finance，報價可能延遲約 15–20 分鐘。本頁顏色：紅＝漲、綠＝跌（與台股看盤慣例相同）。
+    1 股台積電 ADR ＝ 5 股台股；ADR 溢價＝ADR 股價 ÷（台股股價 × 5 ÷ 美元匯率）− 1。
+    SpaceX 於 2026 年 6 月上市，歷史資料較短，「上市以來」最高最低取代 52 週數值。
   </p>
 </div>
 
 <script>
+const ORDER = ["adr", "tw", "mtk", "spcx"];
+const REFRESH = 30;
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const num = (n, d = 2) => n.toLocaleString("zh-TW", { minimumFractionDigits: d, maximumFractionDigits: d });
 const signed = (n, d = 2) => (n > 0 ? "+" : "") + num(n, d);
 const ADVICE_CLASS = { "買入": "buy", "持有": "hold", "賣出": "sell" };
+let live = null, lastPrices = {}, countdown = REFRESH, updatedAt = null;
 
 function chart(c) {
-  const W = 600, H = 190, P = 4;
+  const W = 600, H = 96, P = 3;
   const all = [...c.close, ...c.ma20, ...c.ma60].filter(v => v != null);
   const lo = Math.min(...all), hi = Math.max(...all), span = (hi - lo) || 1;
-  const x = i => (i / (c.close.length - 1) * (W - 2 * P) + P).toFixed(1);
+  const x = i => (i / Math.max(c.close.length - 1, 1) * (W - 2 * P) + P).toFixed(1);
   const y = v => (H - P - (v - lo) / span * (H - 2 * P)).toFixed(1);
   const line = arr => arr.map((v, i) => v == null ? null : `${x(i)},${y(v)}`).filter(Boolean).join(" ");
-  const up = c.close[c.close.length - 1] >= c.close[0];
-  const col = up ? "#ef4444" : "#22c55e";
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="近 ${c.close.length} 日股價走勢">
+  const col = c.close[c.close.length - 1] >= c.close[0] ? "#ef4444" : "#22c55e";
+  return `<div><svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="近 ${c.close.length} 日股價走勢">
       <polygon points="${x(0)},${H} ${line(c.close)} ${x(c.close.length - 1)},${H}" fill="${col}" opacity=".08"/>
       <polyline points="${line(c.ma60)}" fill="none" stroke="#a78bfa" stroke-width="1.2" vector-effect="non-scaling-stroke"/>
       <polyline points="${line(c.ma20)}" fill="none" stroke="#f59e0b" stroke-width="1.2" vector-effect="non-scaling-stroke"/>
-      <polyline points="${line(c.close)}" fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke"/>
+      <polyline points="${line(c.close)}" fill="none" stroke="${col}" stroke-width="1.8" vector-effect="non-scaling-stroke"/>
     </svg>
     <div class="chart-lg"><span><i style="background:${col}"></i>收盤價（近 ${c.close.length} 個交易日）</span>
       <span><i style="background:#f59e0b"></i>MA20</span><span><i style="background:#a78bfa"></i>MA60</span>
-      <span>區間 ${num(lo)} – ${num(hi)}</span></div>`;
+      <span>區間 ${num(lo)} – ${num(hi)}</span></div></div>`;
 }
 
 function render(id, s, extra) {
+  const el = document.getElementById(id);
+  if (!s) { el.innerHTML = '<div class="err">這檔股票的資料暫時無法取得</div>'; return; }
   const dir = s.change > 0 ? "up" : s.change < 0 ? "down" : "flat";
   const arrow = s.change > 0 ? "▲" : s.change < 0 ? "▼" : "";
   const t = new Date(s.time * 1000).toLocaleString("zh-TW", { timeZone: s.timezone, month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
-  const cls = ADVICE_CLASS[s.advice];
-  document.getElementById(id).innerHTML = `
-    <div>
-      <div class="tag">${esc(s.exchange)} · ${esc(s.symbol)}</div>
-      <div class="name">${esc(s.name)}<small>${id === "adr" ? "美股（美元）" : "台股（新台幣）"}</small></div>
-      <div class="price">${num(s.price)}<small>${esc(s.currency)}</small></div>
-      <div class="chg ${dir}">${arrow} ${signed(s.change)}（${signed(s.change_pct)}%）</div>
-      <div class="status ${s.open ? "open" : ""}"><i></i>${s.open ? "交易中" : "已收盤"} · 當地時間 ${esc(t)}</div>
-      <div class="facts">
-        <span>52 週最高</span><b>${num(s.high_52w)}</b>
-        <span>52 週最低</span><b>${num(s.low_52w)}</b>
-        <span>成交量</span><b>${s.volume.toLocaleString("zh-TW")}${id === "tw" ? " 股" : ""}</b>
-        ${extra}
+  const prev = lastPrices[id];
+  const flash = prev == null || prev === s.price ? "" : s.price > prev ? "flash-up" : "flash-down";
+  lastPrices[id] = s.price;
+  el.innerHTML = `
+    <div class="head">
+      <div>
+        <div class="tag">${esc(s.exchange)} · ${esc(s.symbol)}</div>
+        <div class="name">${esc(s.name)}<small>${esc(s.market)}（${esc(s.currency)}）</small></div>
+        <div class="status ${s.open ? "open" : ""}"><i></i>${s.open ? "交易中" : "已收盤"} · 當地時間 ${esc(t)}</div>
       </div>
-      ${chart(s.chart)}
+      <div class="px">
+        <div class="price ${flash}">${num(s.price)}<small>${esc(s.currency)}</small></div>
+        <div class="chg ${dir}">${arrow} ${signed(s.change)}（${signed(s.change_pct)}%）</div>
+      </div>
     </div>
-    <div>
-      <div class="signals">${s.tools.map(tl => `
-        <div class="sig">
-          <div class="tool"><b>${esc(tl.name)}</b><span>${esc(tl.full)}</span></div>
-          <div class="light ${tl.bull ? "bull" : "bear"}" title="${tl.bull ? "漲勢" : "跌勢"}"></div>
-          <div class="why"><span class="lbl ${tl.bull ? "up" : "down"}">${tl.bull ? "漲勢" : "跌勢"}</span>${esc(tl.reason)}
-            <div class="v">${esc(tl.value)}${tl.note ? ` · ${esc(tl.note)}` : ""}</div></div>
-        </div>`).join("")}
-      </div>
-      <div class="advice ${cls}">
-        <div><div class="lab">投資建議</div><div class="word">${esc(s.advice)}</div></div>
-        <div>
-          <div class="dots">${s.tools.map(tl => `<i class="${tl.bull ? "bull" : "bear"}" title="${esc(tl.name)}"></i>`).join("")}</div>
-          <div>紅燈 <b>${s.bulls}</b> / 5 個指標顯示漲勢</div>
-          <div class="rule">規則：紅燈（漲勢）≥ 4 買入 · 2–3 持有 · ≤ 1 賣出</div>
-        </div>
+    <div class="facts">
+      <span>${esc(s.range_label)}最高<b>${num(s.high_52w)}</b></span>
+      <span>${esc(s.range_label)}最低<b>${num(s.low_52w)}</b></span>
+      <span>成交量<b>${s.volume.toLocaleString("zh-TW")}</b></span>
+      ${extra}
+    </div>
+    ${chart(s.chart)}
+    <div class="signals">${s.tools.map(tl => `
+      <div class="sig" title="${esc(tl.full)}">
+        <div class="tool">${esc(tl.name)}</div>
+        <div class="light ${tl.bull ? "bull" : "bear"}" aria-label="${tl.bull ? "漲勢" : "跌勢"}"></div>
+        <div class="why"><span class="lbl ${tl.bull ? "up" : "down"}">${tl.bull ? "漲勢" : "跌勢"}</span>${esc(tl.reason)}
+          <div class="v">${esc(tl.value)}${tl.note ? ` · <span class="n">${esc(tl.note)}</span>` : ""}</div></div>
+      </div>`).join("")}
+    </div>
+    <div class="advice ${ADVICE_CLASS[s.advice]}">
+      <div><div class="lab">投資建議</div><div class="word">${esc(s.advice)}</div></div>
+      <div>
+        <div class="dots">${s.tools.map(tl => `<i class="${tl.bull ? "bull" : "bear"}" title="${esc(tl.name)}"></i>`).join("")}</div>
+        <div class="sum">紅燈 <b>${s.bulls}</b> / 5 個指標顯示漲勢</div>
+        <div class="rule">規則：紅燈（漲勢）≥ 4 買入 · 2–3 持有 · ≤ 1 賣出</div>
       </div>
     </div>`;
 }
 
+async function getData() {
+  // Live data exists only when running start-live.bat on this computer
+  if (live !== false) {
+    try {
+      const r = await fetch(`api/tsmc.json?t=${Date.now()}`, { cache: "no-store" });
+      if (r.ok) { live = true; return r.json(); }
+    } catch (e) { /* fall through to the published data */ }
+    if (live === null) live = false;
+  }
+  return (await fetch(`data/tsmc.json?t=${Date.now()}`, { cache: "no-store" })).json();
+}
+
+function renderMode() {
+  const when = updatedAt ? new Date(updatedAt).toLocaleTimeString("zh-TW", { hour12: false }) : "—";
+  document.getElementById("mode").innerHTML = live
+    ? `<span class="live"><i></i>即時模式</span> · 每 ${REFRESH} 秒更新 · 下次更新 ${countdown} 秒 · 資料時間 ${when}`
+    : `線上版 · 資料每 30 分鐘更新（${when}）· 頁面每 ${REFRESH} 秒檢查 · 下次 ${countdown} 秒 · 要每 30 秒即時更新請在電腦執行 start-live.bat`;
+  document.getElementById("bar").style.width = `${(REFRESH - countdown) / REFRESH * 100}%`;
+}
+
 async function load() {
   try {
-    const d = await (await fetch(`data/tsmc.json?t=${Date.now()}`)).json();
+    const d = await getData();
+    updatedAt = d.generated;
     const p = d.premium;
-    document.getElementById("updated").textContent =
-      `更新於 ${new Date(d.generated).toLocaleString("zh-TW", { dateStyle: "medium", timeStyle: "short" })}（台灣時間）`;
     document.getElementById("strip").innerHTML = `
       <span class="chip">美元／台幣 <b>${num(d.usdtwd, 3)}</b></span>
-      <span class="chip">台股換算 ADR 價 <b>${num(p.fair_usd)} USD</b></span>
-      <span class="chip">ADR 溢價 <b class="${p.pct >= 0 ? "up" : "down"}">${signed(p.pct)}%</b></span>`;
-    render("adr", d.stocks.adr, `<span>ADR 溢價</span><b>${signed(p.pct)}%</b>`);
-    render("tw", d.stocks.tw, `<span>ADR 換算價</span><b>${num(d.stocks.adr.price * d.usdtwd / p.ratio)} TWD</b>`);
+      ${p ? `<span class="chip">台股換算 ADR 價 <b>${num(p.fair_usd)} USD</b></span>
+      <span class="chip">台積電 ADR 溢價 <b class="${p.pct >= 0 ? "up" : "down"}">${signed(p.pct)}%</b></span>` : ""}`;
+    const S = d.stocks;
+    render("adr", S.adr, p ? `<span>ADR 溢價<b>${signed(p.pct)}%</b></span>` : "");
+    render("tw", S.tw, S.adr && p ? `<span>ADR 換算價<b>${num(S.adr.price * d.usdtwd / p.ratio)} TWD</b></span>` : "");
+    render("mtk", S.mtk, "");
+    render("spcx", S.spcx, "");
   } catch (err) {
-    document.getElementById("adr").innerHTML = '<div class="err">資料載入失敗，請稍後重新整理</div>';
-    document.getElementById("tw").innerHTML = "";
+    document.getElementById("mode").textContent = "資料載入失敗，30 秒後重試";
     console.error(err);
   }
 }
-load();
-setInterval(load, 10 * 60 * 1000);
+
+load().then(renderMode);
+setInterval(() => {
+  countdown -= 1;
+  if (countdown <= 0) { countdown = REFRESH; load().then(renderMode); }
+  renderMode();
+}, 1000);
 </script>
 </body>
 </html>

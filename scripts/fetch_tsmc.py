@@ -1,8 +1,9 @@
-"""Fetch TSMC ADR (TSM) and Taiwan shares (2330.TW), compute five technical indicators,
-and write data/tsmc.json for tsmc.html.
+"""Fetch TSMC ADR (TSM), TSMC (2330.TW), MediaTek (2454.TW) and SpaceX (SPCX), compute five
+technical indicators, and write data/tsmc.json for tsmc.html.
 
-Each indicator gives a bullish (red) or bearish (green) signal, following the Taiwan convention; the count of bullish
-signals becomes a buy / hold / sell suggestion. Rule-based, for reference only.
+Each indicator gives a bullish (red) or bearish (green) signal, following the Taiwan convention;
+the count of bullish signals becomes a buy / hold / sell suggestion. Rule-based, for reference only.
+build() is also used by live_server.py to refresh the data every 30 seconds.
 """
 import json
 import sys
@@ -17,8 +18,10 @@ ADR_RATIO = 5      # 1 TSM ADR = 5 shares of 2330
 CHART_DAYS = 120   # days of history sent to the page
 
 STOCKS = [
-    ("adr", "TSM", "台積電 ADR", "紐約證交所 NYSE", "USD"),
-    ("tw", "2330.TW", "台積電", "台灣證交所 TWSE", "TWD"),
+    ("adr", "TSM", "台積電 ADR", "紐約證交所 NYSE", "USD", "美股"),
+    ("tw", "2330.TW", "台積電", "台灣證交所 TWSE", "TWD", "台股"),
+    ("mtk", "2454.TW", "聯發科", "台灣證交所 TWSE", "TWD", "台股"),
+    ("spcx", "SPCX", "SpaceX", "那斯達克 Nasdaq", "USD", "美股"),
 ]
 
 
@@ -134,52 +137,70 @@ def analyse(closes, highs, lows):
     return tools, bulls, advice, series
 
 
-def main():
+def stock(symbol, name, exchange, currency, market):
+    res = chart(symbol, "1y", "1d")
+    meta, q = res["meta"], res["indicators"]["quote"][0]
+    rows = [(t, c, h, l, v) for t, c, h, l, v in
+            zip(res["timestamp"], q["close"], q["high"], q["low"], q["volume"])
+            if None not in (c, h, l)]
+    ts, closes, highs, lows, vols = (list(x) for x in zip(*rows))
+    # During trading the last daily bar can lag the live quote; use the live price
+    live = meta.get("regularMarketPrice")
+    if live and meta.get("regularMarketTime", 0) >= ts[-1]:
+        closes[-1] = live
+        highs[-1], lows[-1] = max(highs[-1], live), min(lows[-1], live)
+    tools, bulls, advice, series = analyse(closes, highs, lows)
+    prev = closes[-2]
+    period = meta.get("currentTradingPeriod", {}).get("regular", {})
+    now = datetime.now(timezone.utc).timestamp()
+    return {
+        "symbol": symbol, "name": name, "exchange": exchange, "currency": currency, "market": market,
+        "price": round(closes[-1], 2),
+        "change": round(closes[-1] - prev, 2),
+        "change_pct": round((closes[-1] - prev) / prev * 100, 2),
+        "volume": vols[-1] or 0,
+        "time": meta["regularMarketTime"],
+        "timezone": meta.get("exchangeTimezoneName"),
+        "open": period.get("start", 0) <= now <= period.get("end", 0),
+        "range_label": "52 週" if len(closes) >= 240 else "上市以來",
+        "high_52w": round(max(highs), 2), "low_52w": round(min(lows), 2),
+        "tools": tools, "bulls": bulls, "advice": advice,
+        "chart": {
+            "t": ts[-CHART_DAYS:],
+            "close": [round(c, 2) for c in closes[-CHART_DAYS:]],
+            "ma20": [round(x, 2) if x else None for x in series["ma20"]],
+            "ma60": [round(x, 2) if x else None for x in series["ma60"]],
+        },
+    }
+
+
+def build():
     out = {"generated": datetime.now(timezone.utc).isoformat(timespec="seconds"), "stocks": {}}
     fx = chart("TWD=X", "5d", "1d")["meta"]["regularMarketPrice"]
     out["usdtwd"] = round(fx, 3)
+    for key, *info in STOCKS:
+        try:
+            out["stocks"][key] = stock(*info)
+        except Exception as e:  # one failing symbol should not hide the others
+            print(f"{info[0]}: {e}", file=sys.stderr)
+    adr, tw = out["stocks"].get("adr"), out["stocks"].get("tw")
+    if adr and tw:
+        fair = tw["price"] * ADR_RATIO / fx
+        out["premium"] = {"ratio": ADR_RATIO, "fair_usd": round(fair, 2),
+                          "pct": round((adr["price"] / fair - 1) * 100, 2)}
+    return out
 
-    for key, symbol, name, exchange, currency in STOCKS:
-        res = chart(symbol, "1y", "1d")
-        meta, q = res["meta"], res["indicators"]["quote"][0]
-        rows = [(t, c, h, l, v) for t, c, h, l, v in
-                zip(res["timestamp"], q["close"], q["high"], q["low"], q["volume"])
-                if None not in (c, h, l)]
-        ts, closes, highs, lows, vols = (list(x) for x in zip(*rows))
-        tools, bulls, advice, series = analyse(closes, highs, lows)
-        prev = closes[-2]
-        period = meta.get("currentTradingPeriod", {}).get("regular", {})
-        now = datetime.now(timezone.utc).timestamp()
-        out["stocks"][key] = {
-            "symbol": symbol, "name": name, "exchange": exchange, "currency": currency,
-            "price": round(closes[-1], 2),
-            "change": round(closes[-1] - prev, 2),
-            "change_pct": round((closes[-1] - prev) / prev * 100, 2),
-            "volume": vols[-1],
-            "time": meta["regularMarketTime"],
-            "timezone": meta.get("exchangeTimezoneName"),
-            "open": period.get("start", 0) <= now <= period.get("end", 0),
-            "high_52w": round(max(highs), 2), "low_52w": round(min(lows), 2),
-            "tools": tools, "bulls": bulls, "advice": advice,
-            "chart": {
-                "t": ts[-CHART_DAYS:],
-                "close": [round(c, 2) for c in closes[-CHART_DAYS:]],
-                "ma20": [round(x, 2) if x else None for x in series["ma20"]],
-                "ma60": [round(x, 2) if x else None for x in series["ma60"]],
-            },
-        }
-        print(f"{symbol}: {closes[-1]:.2f}  bullish {bulls}/5 -> {advice}")
 
-    adr, tw = out["stocks"]["adr"], out["stocks"]["tw"]
-    fair = tw["price"] * ADR_RATIO / fx
-    out["premium"] = {
-        "ratio": ADR_RATIO,
-        "fair_usd": round(fair, 2),
-        "pct": round((adr["price"] / fair - 1) * 100, 2),
-    }
+def main():
+    out = build()
+    if not out["stocks"]:
+        sys.exit("no stock data could be fetched")
     DATA.mkdir(exist_ok=True)
     (DATA / "tsmc.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), "utf-8")
-    print(f"ADR premium {out['premium']['pct']:+.2f}% (USD/TWD {fx:.3f})")
+    for s in out["stocks"].values():
+        print(f"{s['symbol']}: {s['price']:.2f}  bullish {s['bulls']}/5 -> {s['advice']}")
+    if "premium" in out:
+        print(f"ADR premium {out['premium']['pct']:+.2f}% (USD/TWD {out['usdtwd']:.3f})")
 
 
 if __name__ == "__main__":

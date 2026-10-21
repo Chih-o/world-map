@@ -22,7 +22,13 @@ index.html：世界地圖（Leaflet）
 | `index.html` | 地圖網頁 |
 | `scripts/fetch_gdelt.py` | 下載 GDELT 資料，依國家統計 |
 | `scripts/fetch_markets.py` | 下載股市指數 |
-| `tsmc.html`、`scripts/fetch_tsmc.py` | 台積電 ADR／台股技術分析（MA、MACD、RSI、KD、布林通道），網址 `/world-map/tsmc.html` |
+| `tsmc.html`、`scripts/fetch_tsmc.py` | 台積電 ADR、台積電、聯發科、SpaceX 四格技術分析（MA、MACD、RSI、KD、布林通道），網址 `/world-map/tsmc.html` |
+| `start-live.bat`、`scripts/live_server.py` | 在自己電腦上執行，個股分析頁每 30 秒即時更新 |
+
+## 個股分析即時模式
+
+線上版的資料由 GitHub Actions 每 30 分鐘更新（GitHub 無法更頻繁執行，報價網站也不允許網頁直接讀取）。
+要每 30 秒更新：在電腦上點兩下 `start-live.bat`，會自動打開 http://localhost:8000/tsmc.html，關閉黑色視窗即停止。
 | `.github/workflows/update.yml` | 每 30 分鐘自動執行並發布網站 |
 | `data/` | 自動產生的資料（請勿手動修改） |
 
