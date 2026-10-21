@@ -59,6 +59,14 @@
   .sig.sell { color: var(--bear); border-color: var(--bear); }
   .act-buy { color: var(--bull); font-weight: 600; } .act-sell { color: var(--bear); font-weight: 600; } .act-none { color: var(--muted); }
   .note { color: var(--muted); font-size: 12px; line-height: 1.75; margin-top: 18px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 10px; }
+  .tabs button { background: var(--panel); color: var(--muted); border: 1px solid var(--line); border-radius: 999px;
+    padding: 6px 16px; font: inherit; font-size: 13px; cursor: pointer; }
+  .tabs button.on { color: var(--text); border-color: var(--accent); background: var(--panel-2); }
+  .stock-title { font-size: 20px; margin: 4px 0 2px; }
+  table.overview tr[data-code] { cursor: pointer; }
+  table.overview tr.on td { background: var(--panel-2); }
+  table.overview td:first-child { text-align: left; }
   .err { color: var(--muted); padding: 40px; text-align: center; }
 
   @media (max-width: 900px) {
@@ -71,8 +79,18 @@
 <body>
 <div class="wrap">
   <div class="nav"><a href="tsmc.html">← 個股技術分析</a><a href="./">全球時事地圖</a></div>
-  <h1>聯發科（2454）十大指標反向操作回測</h1>
-  <div class="sub" id="period">載入中…</div>
+  <h1>十大指標反向操作回測</h1>
+  <div class="sub" id="rule-line">載入中…</div>
+
+  <section class="card" style="margin-top:16px">
+    <h2>四檔比較（每次 1 張，已扣手續費與稅）</h2>
+    <div class="desc sub" style="margin-bottom:8px">點選股票可在下方查看詳細圖表與每日燈號。</div>
+    <div class="tablewrap"><table class="days overview" id="overview"></table></div>
+  </section>
+
+  <div class="tabs" id="tabs"></div>
+  <h2 class="stock-title" id="title"></h2>
+  <div class="sub" id="period"></div>
 
   <div class="hero">
     <div class="card verdict" id="verdict"></div>
@@ -119,7 +137,7 @@ const money = n => (n > 0 ? "+" : n < 0 ? "−" : "") + Math.abs(Math.round(n)).
 const cls = n => n > 0 ? "up" : n < 0 ? "down" : "flat";
 const md = s => s.slice(5).replace("-", "/");
 const tip = document.getElementById("tip");
-let data;
+let all, data, code;
 
 function niceTicks(lo, hi, count = 5) {
   const span = hi - lo || 1, step0 = span / count, mag = 10 ** Math.floor(Math.log10(step0));
@@ -204,10 +222,38 @@ function drawPrice() {
   }, dayTip);
 }
 
+function renderOverview() {
+  document.getElementById("rule-line").textContent =
+    `近 ${all.months} 個月到今天 · 每天上午 10 點反向操作：建議「賣出」就買進 1 張，建議「買入」就賣出 1 張（無持股不賣）`;
+  document.getElementById("tabs").innerHTML = all.order.map(c =>
+    `<button data-code="${esc(c)}" class="${c === code ? "on" : ""}">${esc(all.stocks[c].name)} ${esc(c)}</button>`).join("");
+  document.getElementById("overview").innerHTML = `
+    <tr><th>股票</th><th>1 張約</th><th>反向操作</th><th>照建議做</th><th>買 1 張持有</th><th>買／賣張數</th><th>目前持股</th><th>最高投入</th></tr>
+    ${all.order.map(c => { const st = all.stocks[c], s = st.summary; return `
+      <tr data-code="${esc(c)}" class="${c === code ? "on" : ""}">
+        <td>${esc(st.name)} <span class="sub">${esc(c)}</span></td>
+        <td>${int(s.last_close * all.rules.lot)}</td>
+        <td class="${cls(s.total)}"><b>${money(s.total)}</b></td>
+        <td class="${cls(s.follow_total)}">${money(s.follow_total)}</td>
+        <td class="${cls(s.buy_and_hold)}">${money(s.buy_and_hold)}</td>
+        <td>${s.buys} / ${s.sells}</td>
+        <td>${s.lots_held} 張</td>
+        <td>${int(s.max_cost)}</td></tr>`; }).join("")}`;
+}
+
+function select(c) {
+  code = c;
+  data = { ...all.stocks[c], months: all.months, rules: all.rules, generated: all.generated };
+  renderOverview();
+  render();
+}
+
 function render() {
   const s = data.summary, r = data.rules;
+  document.title = `${data.name}反向操作回測`;
+  document.getElementById("title").textContent = `${data.name}（${code}）`;
   document.getElementById("period").textContent =
-    `回測期間 ${data.start} ～ ${data.end}（近 ${data.months} 個月），共 ${s.trading_days} 個交易日 · 每天上午 10 點反向操作：建議「賣出」就買進 1 張，建議「買入」就賣出 1 張`;
+    `回測期間 ${data.start} ～ ${data.end}，共 ${s.trading_days} 個交易日 · 1 張＝${int(r.lot)} 股，約 ${int(s.last_close * r.lot)} 元`;
   document.getElementById("verdict").innerHTML = `
     <div class="lab">到今天的總損益（已扣手續費與交易稅）</div>
     <div class="big ${cls(s.total)}">${money(s.total)} 元</div>
@@ -245,13 +291,20 @@ function render() {
     <b>回測規則：</b>每天開盤前，用前一個交易日收盤為止的日線計算 10 個指標（MA、MACD、RSI、KD、布林通道、DMI、SAR、威廉 %R、ROC、OBV），
     紅燈 ≥ 7 為「買入」、4–6「持有」、≤ 3「賣出」。上午 10 點<b>反向操作</b>：建議「賣出」就買進 1 張；建議「買入」就賣出 1 張，手上 0 張就不賣（不放空）；「持有」不動作。每次只買或賣 1 張。<br>
     <b>成本：</b>手續費 ${(r.fee_rate * 100).toFixed(4)}%（最低 ${r.fee_min} 元，未計折扣）、賣出交易稅 ${(r.tax_rate * 100).toFixed(1)}%。成交價用 Yahoo Finance 小時線 10:00 的價格，實際成交可能有落差。<br>
-    <b>注意：</b>聯發科 1 張約 300–500 萬元，連續訊號會讓持股累積到好幾張，所以損益金額很大。
+    <b>注意：</b>每檔股票 1 張的金額差很多（例如信驊 1 張超過 1,000 萬元、0050 約 10 萬元），連續訊號會讓持股累積到好幾張，損益金額請和投入金額一起看。
     反向操作在來回震盪的行情較有利，遇到一路上漲會太早賣光、一路下跌則會越跌越買。歷史回測結果不代表未來表現，僅供學習參考，不構成投資建議。<br>
     資料產生時間：${new Date(data.generated).toLocaleString("zh-TW")}`;
 }
 
-fetch(`data/backtest_2454.json?t=${Date.now()}`).then(r => r.json()).then(d => { data = d; render(); })
-  .catch(err => { document.getElementById("period").textContent = "資料載入失敗"; console.error(err); });
+const pick = e => { const el = e.target.closest("[data-code]"); if (el) { select(el.dataset.code); history.replaceState(null, "", "#" + el.dataset.code); } };
+document.getElementById("tabs").addEventListener("click", pick);
+document.getElementById("overview").addEventListener("click", pick);
+
+fetch(`data/backtest.json?t=${Date.now()}`).then(r => r.json()).then(d => {
+  all = d;
+  const want = location.hash.slice(1);
+  select(all.stocks[want] ? want : all.order[0]);
+}).catch(err => { document.getElementById("rule-line").textContent = "資料載入失敗"; console.error(err); });
 let rt;
 window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => data && (drawDaily(), drawCum(), drawPrice()), 150); });
 </script>

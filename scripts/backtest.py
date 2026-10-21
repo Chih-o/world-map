@@ -1,10 +1,10 @@
-"""Backtest a contrarian use of the ten-indicator signal on MediaTek (2454.TW) over the last three months.
+"""Backtest a contrarian use of the ten-indicator signal on several Taiwan listings over the last three months.
 
 Each trading day the signal is computed from daily bars up to the previous close (no look-ahead).
 At 10:00 the strategy trades one lot (1,000 shares) against the signal: 賣出 -> buy one lot,
 買入 -> sell one lot if any is held (no short selling), 持有 -> nothing. Taiwan fees are included.
 For comparison it also reports following the signal one lot at a time, and buying one lot and holding.
-Writes data/backtest_2454.json.
+Writes data/backtest.json.
 """
 import json
 import sys
@@ -16,7 +16,13 @@ from fetch_markets import chart
 from fetch_tsmc import analyse, daily_bars
 
 DATA = Path(__file__).resolve().parent.parent / "data"
-SYMBOL, NAME = "2454.TW", "聯發科"
+# code, Yahoo symbol, name
+STOCKS = [
+    ("2454", "2454.TW", "聯發科"),
+    ("2330", "2330.TW", "台積電"),
+    ("5274", "5274.TWO", "信驊"),
+    ("0050", "0050.TW", "元大台灣50"),
+]
 LOT = 1000
 MONTHS = 3
 FEE_RATE, FEE_MIN, TAX_RATE = 0.001425, 20, 0.003
@@ -72,23 +78,17 @@ def simulate(signals, rule):
     return out, summary
 
 
-def main():
-    ts, closes, highs, lows, vols = daily_bars(chart(SYMBOL, "2y", "1d"))
+def backtest(symbol, name, start):
+    ts, closes, highs, lows, vols = daily_bars(chart(symbol, "2y", "1d"))
     bars = [(datetime.fromtimestamp(t, TW).date(), c, h, l, v)
             for t, c, h, l, v in zip(ts, closes, highs, lows, vols)]
 
-    hourly = chart(SYMBOL, "6mo", "60m")
+    hourly = chart(symbol, "6mo", "60m")
     at10 = {}
     for t, o in zip(hourly["timestamp"], hourly["indicators"]["quote"][0]["open"]):
         dt = datetime.fromtimestamp(t, TW)
         if dt.hour == 10 and dt.minute == 0 and o is not None:
             at10[dt.date()] = o
-
-    today = datetime.now(TW).date()
-    m, y = today.month - MONTHS, today.year
-    if m <= 0:
-        m, y = m + 12, y - 1
-    start = date(y, m, min(today.day, 28))
 
     days, signals = [], []
     for i, (d, close, *_rest) in enumerate(bars):
@@ -115,21 +115,43 @@ def main():
         "buy_and_hold": round(buy_and_hold),
         "follow_total": follow["total"],
     })
-    out = {
-        "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "symbol": SYMBOL, "name": NAME, "months": MONTHS,
+    return {
+        "symbol": symbol, "name": name,
         "start": days[0]["date"], "end": days[-1]["date"],
-        "rules": {"lot": LOT, "fee_rate": FEE_RATE, "fee_min": FEE_MIN, "tax_rate": TAX_RATE},
         "summary": summary,
         "days": days,
     }
+
+
+def main():
+    today = datetime.now(TW).date()
+    m, y = today.month - MONTHS, today.year
+    if m <= 0:
+        m, y = m + 12, y - 1
+    start = date(y, m, min(today.day, 28))
+
+    stocks = {}
+    for code, symbol, name in STOCKS:
+        try:
+            stocks[code] = backtest(symbol, name, start)
+        except Exception as e:  # one failing stock should not hide the others
+            print(f"{symbol}: {e}", file=sys.stderr)
+            continue
+        s = stocks[code]["summary"]
+        print(f"{code} {name}: {stocks[code]['start']}~{stocks[code]['end']} signals {s['signal_counts']}  "
+              f"contrarian {s['total']:+,} (buys {s['buys']} sells {s['sells']} held {s['lots_held']})  "
+              f"follow {s['follow_total']:+,}  buy&hold {s['buy_and_hold']:+,}")
+    if not stocks:
+        sys.exit("no backtest could be run")
+    out = {
+        "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "months": MONTHS,
+        "rules": {"lot": LOT, "fee_rate": FEE_RATE, "fee_min": FEE_MIN, "tax_rate": TAX_RATE},
+        "order": list(stocks),
+        "stocks": stocks,
+    }
     DATA.mkdir(exist_ok=True)
-    (DATA / "backtest_2454.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), "utf-8")
-    s = summary
-    print(f"{out['start']} ~ {out['end']}  {s['trading_days']} days  signals {s['signal_counts']}")
-    print(f"contrarian: buys {s['buys']} sells {s['sells']} held {s['lots_held']}  total {s['total']:+,} "
-          f"(realized {s['realized']:+,}, unrealized {s['unrealized']:+,}, fees {s['fees']:,})")
-    print(f"follow signal 1 lot: {s['follow_total']:+,}   buy&hold 1 lot: {s['buy_and_hold']:+,}")
+    (DATA / "backtest.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), "utf-8")
 
 
 if __name__ == "__main__":
