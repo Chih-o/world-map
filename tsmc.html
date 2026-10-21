@@ -14,6 +14,8 @@
   html, body { margin: 0; background: var(--bg); color: var(--text);
     font: 14px/1.45 system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", sans-serif; }
   a { color: var(--accent); }
+  /* Show everything at 80% on computer screens; phones keep full size for readability */
+  @media (min-width: 900px) { body { zoom: 0.8; } }
   .wrap { max-width: 1600px; margin: 0 auto; padding: 14px; }
   .top { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   h1 { font-size: 19px; margin: 0; }
