@@ -1,7 +1,7 @@
 """Fetch TSMC ADR (TSM) and Taiwan shares (2330.TW), compute five technical indicators,
 and write data/tsmc.json for tsmc.html.
 
-Each indicator gives a bullish (green) or bearish (red) signal; the count of bullish
+Each indicator gives a bullish (red) or bearish (green) signal, following the Taiwan convention; the count of bullish
 signals becomes a buy / hold / sell suggestion. Rule-based, for reference only.
 """
 import json

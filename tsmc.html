@@ -8,7 +8,7 @@
   :root {
     --bg: #0b0f17; --panel: #111827; --panel-2: #1a2232; --line: #263044;
     --text: #e5e9f0; --muted: #8b96ab; --accent: #60a5fa;
-    --bull: #22c55e; --bear: #ef4444; --hold: #f59e0b;
+    --bull: #ef4444; --bear: #22c55e; --hold: #f59e0b; /* Taiwan convention: red = up, green = down */
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
@@ -49,8 +49,8 @@
   .sig .tool b { display: block; font-size: 14px; }
   .sig .tool span { font-size: 11px; color: var(--muted); }
   .light { width: 30px; height: 30px; border-radius: 50%; justify-self: center; position: relative; }
-  .light.bull { background: radial-gradient(circle at 35% 35%, #86efac, var(--bull) 55%, #15803d); box-shadow: 0 0 14px rgba(34,197,94,.65); }
-  .light.bear { background: radial-gradient(circle at 35% 35%, #fca5a5, var(--bear) 55%, #b91c1c); box-shadow: 0 0 14px rgba(239,68,68,.65); }
+  .light.bull { background: radial-gradient(circle at 35% 35%, #fca5a5, var(--bull) 55%, #b91c1c); box-shadow: 0 0 14px rgba(239,68,68,.65); }
+  .light.bear { background: radial-gradient(circle at 35% 35%, #86efac, var(--bear) 55%, #15803d); box-shadow: 0 0 14px rgba(34,197,94,.65); }
   .sig .why { font-size: 13px; }
   .sig .why .v { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   .sig .why .lbl { font-weight: 700; margin-right: 6px; }
@@ -58,9 +58,9 @@
 
   .advice { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; margin-top: 12px;
     border-radius: 12px; padding: 14px 16px; border: 1px solid; }
-  .advice.buy { border-color: var(--bull); background: rgba(34,197,94,.08); }
+  .advice.buy { border-color: var(--bull); background: rgba(239,68,68,.08); }
   .advice.hold { border-color: var(--hold); background: rgba(245,158,11,.08); }
-  .advice.sell { border-color: var(--bear); background: rgba(239,68,68,.08); }
+  .advice.sell { border-color: var(--bear); background: rgba(34,197,94,.08); }
   .advice .word { font-size: 34px; font-weight: 800; letter-spacing: 4px; line-height: 1; }
   .advice.buy .word { color: var(--bull); } .advice.hold .word { color: var(--hold); } .advice.sell .word { color: var(--bear); }
   .advice .lab { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
@@ -89,8 +89,8 @@
     </div>
     <div class="strip" id="strip"></div>
     <div class="legend">
-      <span><i style="background:var(--bull)"></i>綠燈＝漲勢</span>
-      <span><i style="background:var(--bear)"></i>紅燈＝跌勢</span>
+      <span><i style="background:var(--bull)"></i>紅燈＝漲勢</span>
+      <span><i style="background:var(--bear)"></i>綠燈＝跌勢</span>
       <a href="./">← 回全球時事地圖</a>
     </div>
   </div>
@@ -99,9 +99,9 @@
   <section class="half" id="tw"><div class="err">載入中…</div></section>
 
   <p class="disclaimer">
-    ⚠️ <b>僅供參考，不構成投資建議。</b>燈號與建議由程式依技術指標自動計算：5 個指標中綠燈 4 個以上為「買入」、2–3 個為「持有」、1 個以下為「賣出」。
+    ⚠️ <b>僅供參考，不構成投資建議。</b>燈號與建議由程式依技術指標自動計算：5 個指標中紅燈（漲勢）4 個以上為「買入」、2–3 個為「持有」、1 個以下為「賣出」。
     技術分析只反映過去價格走勢，無法預測財報、法說會、國際情勢等事件。投資前請自行判斷並控制風險。<br>
-    資料來源：Yahoo Finance（日線，約每 30 分鐘更新，可能延遲）。本頁顏色：綠＝漲、紅＝跌（與台股看盤慣例「紅漲綠跌」相反）。
+    資料來源：Yahoo Finance（日線，約每 30 分鐘更新，可能延遲）。本頁顏色：紅＝漲、綠＝跌（與台股看盤慣例相同）。
     1 股 ADR ＝ 5 股台股；ADR 溢價＝ADR 股價 ÷（台股股價 × 5 ÷ 美元匯率）− 1。
   </p>
 </div>
@@ -120,7 +120,7 @@ function chart(c) {
   const y = v => (H - P - (v - lo) / span * (H - 2 * P)).toFixed(1);
   const line = arr => arr.map((v, i) => v == null ? null : `${x(i)},${y(v)}`).filter(Boolean).join(" ");
   const up = c.close[c.close.length - 1] >= c.close[0];
-  const col = up ? "#22c55e" : "#ef4444";
+  const col = up ? "#ef4444" : "#22c55e";
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="近 ${c.close.length} 日股價走勢">
       <polygon points="${x(0)},${H} ${line(c.close)} ${x(c.close.length - 1)},${H}" fill="${col}" opacity=".08"/>
       <polyline points="${line(c.ma60)}" fill="none" stroke="#a78bfa" stroke-width="1.2" vector-effect="non-scaling-stroke"/>
@@ -165,8 +165,8 @@ function render(id, s, extra) {
         <div><div class="lab">投資建議</div><div class="word">${esc(s.advice)}</div></div>
         <div>
           <div class="dots">${s.tools.map(tl => `<i class="${tl.bull ? "bull" : "bear"}" title="${esc(tl.name)}"></i>`).join("")}</div>
-          <div>綠燈 <b>${s.bulls}</b> / 5 個指標顯示漲勢</div>
-          <div class="rule">規則：綠燈 ≥ 4 買入 · 2–3 持有 · ≤ 1 賣出</div>
+          <div>紅燈 <b>${s.bulls}</b> / 5 個指標顯示漲勢</div>
+          <div class="rule">規則：紅燈（漲勢）≥ 4 買入 · 2–3 持有 · ≤ 1 賣出</div>
         </div>
       </div>
     </div>`;
