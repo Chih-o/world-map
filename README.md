@@ -23,7 +23,7 @@ index.html：世界地圖（Leaflet）
 | `scripts/fetch_gdelt.py` | 下載 GDELT 資料，依國家統計 |
 | `scripts/fetch_markets.py` | 下載股市指數 |
 | `tsmc.html`、`scripts/fetch_tsmc.py` | 台積電 ADR、台積電、聯發科、SpaceX 四格技術分析（MA、MACD、RSI、KD、布林通道），網址 `/world-map/tsmc.html` |
-| `backtest.html`、`scripts/backtest.py` | 聯發科、台積電、信驊、0050 近三個月十大指標反向操作回測（每天 10 點，建議賣出就買 200 股、建議買入就賣 100 股），網址 `/world-map/backtest.html` |
+| `backtest.html`、`scripts/backtest.py` | 聯發科、台積電、信驊、0050 近半年十大指標反向操作回測（每天 10 點，建議賣出就買 200 股、建議買入就賣 100 股），網址 `/world-map/backtest.html` |
 | `start-live.bat`、`scripts/live_server.py` | 在自己電腦上執行，個股分析頁每 30 秒即時更新 |
 
 ## 個股分析即時模式

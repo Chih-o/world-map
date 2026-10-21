@@ -1,4 +1,4 @@
-"""Backtest a contrarian use of the ten-indicator signal on several Taiwan listings over the last three months.
+"""Backtest a contrarian use of the ten-indicator signal on several Taiwan listings over the last six months.
 
 Each trading day the signal is computed from daily bars up to the previous close (no look-ahead).
 At 10:00 the strategy trades against the signal: 賣出 -> buy BUY_QTY shares, 買入 -> sell SELL_QTY
@@ -24,7 +24,7 @@ STOCKS = [
     ("0050", "0050.TW", "元大台灣50"),
 ]
 BUY_QTY, SELL_QTY = 200, 100  # shares per trade (odd-lot trading)
-MONTHS = 3
+MONTHS = 6
 FEE_RATE, FEE_MIN, TAX_RATE = 0.001425, 20, 0.003
 TW = timezone(timedelta(hours=8))
 # signal -> what the strategy does
@@ -84,7 +84,7 @@ def backtest(symbol, name, start):
     bars = [(datetime.fromtimestamp(t, TW).date(), c, h, l, v)
             for t, c, h, l, v in zip(ts, closes, highs, lows, vols)]
 
-    hourly = chart(symbol, "6mo", "60m")
+    hourly = chart(symbol, "1y", "60m")
     at10 = {}
     for t, o in zip(hourly["timestamp"], hourly["indicators"]["quote"][0]["open"]):
         dt = datetime.fromtimestamp(t, TW)
