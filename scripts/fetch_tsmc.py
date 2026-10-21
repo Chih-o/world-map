@@ -1,5 +1,6 @@
-"""Fetch TSMC ADR (TSM), TSMC (2330.TW), MediaTek (2454.TW) and SpaceX (SPCX), compute ten
-technical indicators, and write data/tsmc.json for tsmc.html.
+"""Fetch TSMC ADR (TSM), TSMC (2330.TW), MediaTek (2454.TW), SpaceX (SPCX) and the ETFs
+0050 / 0056, compute ten technical indicators, add the last three days of institutional
+investor (三大法人) net buying for Taiwan listings, and write data/tsmc.json for tsmc.html.
 
 Each indicator gives a bullish (red) or bearish (green) signal, following the Taiwan convention;
 the count of bullish signals becomes a buy / hold / sell suggestion. Rule-based, for reference only.
@@ -7,7 +8,9 @@ build() is also used by live_server.py to refresh the data every 30 seconds.
 """
 import json
 import sys
-from datetime import datetime, timezone
+import time
+import urllib.request
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -16,13 +19,59 @@ from fetch_markets import chart  # reuse the Yahoo fetch with retries
 DATA = Path(__file__).resolve().parent.parent / "data"
 ADR_RATIO = 5      # 1 TSM ADR = 5 shares of 2330
 CHART_DAYS = 120   # days of history sent to the page
+INST_DAYS = 3      # trading days of institutional data
+INST_TTL = 30 * 60  # TWSE publishes once a day; don't ask more than every 30 minutes
 
+# key, Yahoo symbol, name, exchange, currency, market, TWSE code (None for US listings)
 STOCKS = [
-    ("adr", "TSM", "台積電 ADR", "紐約證交所 NYSE", "USD", "美股"),
-    ("tw", "2330.TW", "台積電", "台灣證交所 TWSE", "TWD", "台股"),
-    ("mtk", "2454.TW", "聯發科", "台灣證交所 TWSE", "TWD", "台股"),
-    ("spcx", "SPCX", "SpaceX", "那斯達克 Nasdaq", "USD", "美股"),
+    ("adr", "TSM", "台積電 ADR", "紐約證交所 NYSE", "USD", "美股", None),
+    ("tw", "2330.TW", "台積電", "台灣證交所 TWSE", "TWD", "台股", "2330"),
+    ("mtk", "2454.TW", "聯發科", "台灣證交所 TWSE", "TWD", "台股", "2454"),
+    ("spcx", "SPCX", "SpaceX", "那斯達克 Nasdaq", "USD", "美股", None),
+    ("etf50", "0050.TW", "元大台灣50", "台灣證交所 TWSE", "TWD", "台股 ETF", "0050"),
+    ("etf56", "0056.TW", "元大高股息", "台灣證交所 TWSE", "TWD", "台股 ETF", "0056"),
 ]
+_inst_cache = {"t": 0.0, "data": {}}
+
+
+def _shares(s):
+    return int(s.replace(",", "").strip() or 0)
+
+
+def institutional(codes):
+    """Net shares bought by foreign investors, investment trusts and dealers over the last
+    INST_DAYS trading days, from the TWSE T86 daily report."""
+    if time.time() - _inst_cache["t"] < INST_TTL and _inst_cache["data"]:
+        return _inst_cache["data"]
+    out = {c: {"days": []} for c in codes}
+    day, found = date.today(), 0
+    for _ in range(12):  # enough to step over weekends and holidays
+        url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={day:%Y%m%d}&selectType=ALL&response=json"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            report = json.load(r)
+        if report.get("stat") == "OK":
+            rows = {row[0].strip(): row for row in report["data"]}
+            for c in codes:
+                row = rows.get(c)
+                if row:
+                    out[c]["days"].append({
+                        "date": f"{day:%m/%d}",
+                        "foreign": _shares(row[4]) + _shares(row[7]),
+                        "trust": _shares(row[10]),
+                        "dealer": _shares(row[11]),
+                        "total": _shares(row[18]),
+                    })
+            found += 1
+            if found == INST_DAYS:
+                break
+        day -= timedelta(days=1)
+        time.sleep(1.5)  # TWSE blocks rapid repeated requests
+    for c in codes:
+        days = out[c]["days"]
+        out[c]["sum"] = {k: sum(d[k] for d in days) for k in ("foreign", "trust", "dealer", "total")}
+    _inst_cache.update(t=time.time(), data=out)
+    return out
 
 
 def sma(xs, n):
@@ -272,11 +321,18 @@ def build():
     out = {"generated": datetime.now(timezone.utc).isoformat(timespec="seconds"), "stocks": {}}
     fx = chart("TWD=X", "5d", "1d")["meta"]["regularMarketPrice"]
     out["usdtwd"] = round(fx, 3)
-    for key, *info in STOCKS:
+    codes = [s[6] for s in STOCKS if s[6]]
+    try:
+        inst = institutional(codes)
+    except Exception as e:  # keep the page working if TWSE is unreachable
+        print(f"TWSE institutional data: {e}", file=sys.stderr)
+        inst = _inst_cache["data"]
+    for key, symbol, name, exchange, currency, market, code in STOCKS:
         try:
-            out["stocks"][key] = stock(*info)
+            out["stocks"][key] = stock(symbol, name, exchange, currency, market)
+            out["stocks"][key]["inst"] = inst.get(code) if code else None
         except Exception as e:  # one failing symbol should not hide the others
-            print(f"{info[0]}: {e}", file=sys.stderr)
+            print(f"{symbol}: {e}", file=sys.stderr)
     adr, tw = out["stocks"].get("adr"), out["stocks"].get("tw")
     if adr and tw:
         fair = tw["price"] * ADR_RATIO / fx

@@ -16,7 +16,7 @@
   a { color: var(--accent); }
   /* Show everything at 80% on computer screens; phones keep full size for readability */
   @media (min-width: 900px) { body { zoom: 0.8; } }
-  .wrap { max-width: 1600px; margin: 0 auto; padding: 14px; }
+  .wrap { max-width: 2400px; margin: 0 auto; padding: 14px; }
   .top { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   h1 { font-size: 19px; margin: 0; }
   .mode { font-size: 12px; color: var(--muted); margin-top: 2px; }
@@ -67,7 +67,8 @@
   .sig .why .v { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sig .why .n { color: var(--hold); }
 
-  .advice { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; border-radius: 10px; padding: 10px 14px; border: 1px solid; margin-top: auto; }
+  .bottom { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 8px; margin-top: auto; }
+  .advice { border-radius: 10px; padding: 10px 12px; border: 1px solid; }
   .advice.buy { border-color: var(--bull); background: rgba(239,68,68,.08); }
   .advice.hold { border-color: var(--hold); background: rgba(245,158,11,.08); }
   .advice.sell { border-color: var(--bear); background: rgba(34,197,94,.08); }
@@ -78,14 +79,23 @@
   .dots i { width: 12px; height: 12px; border-radius: 50%; }
   .dots i.bull { background: var(--bull); } .dots i.bear { background: var(--bear); }
   .advice .sum { font-size: 12px; } .advice .rule { font-size: 10px; color: var(--muted); }
+  .inst { border: 1px solid var(--line); background: var(--panel-2); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+  .inst .lab { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+  .inst table { width: 100%; border-collapse: collapse; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .inst th { color: var(--muted); font-weight: 400; text-align: right; padding: 1px 3px; }
+  .inst td { text-align: right; padding: 2px 3px; white-space: nowrap; }
+  .inst th:first-child, .inst td:first-child { text-align: left; color: var(--muted); }
+  .inst tr.total td { border-top: 1px solid var(--line); font-weight: 700; }
+  .inst .na { font-size: 12px; color: var(--muted); padding: 10px 0; }
 
   .disclaimer { color: var(--muted); font-size: 12px; line-height: 1.7; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 14px; }
   .err { color: var(--muted); padding: 40px; text-align: center; }
 
+  @media (min-width: 1400px) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   @media (max-width: 1100px) { .grid { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 520px) {
     .head { grid-template-columns: minmax(0, 1fr); } .px { text-align: left; }
-    .signals { grid-template-columns: minmax(0, 1fr); }
+    .signals, .bottom { grid-template-columns: minmax(0, 1fr); }
     .sig { grid-template-columns: minmax(0, 1fr) 26px; } .sig .why { grid-column: 1 / -1; }
   }
 </style>
@@ -94,7 +104,7 @@
 <div class="wrap">
   <div class="top">
     <div>
-      <h1>台積電 ADR ／ 台積電 ／ 聯發科 ／ SpaceX 技術分析</h1>
+      <h1>台積電 ADR ／ 台積電 ／ 聯發科 ／ SpaceX ／ 0050 ／ 0056 技術分析</h1>
       <div class="mode" id="mode">載入中…</div>
       <div class="bar"><i id="bar"></i></div>
     </div>
@@ -111,6 +121,8 @@
     <section class="panel" id="tw"><div class="err">載入中…</div></section>
     <section class="panel" id="mtk"><div class="err">載入中…</div></section>
     <section class="panel" id="spcx"><div class="err">載入中…</div></section>
+    <section class="panel" id="etf50"><div class="err">載入中…</div></section>
+    <section class="panel" id="etf56"><div class="err">載入中…</div></section>
   </div>
 
   <p class="disclaimer">
@@ -121,7 +133,9 @@
     滑鼠移到指標上可看完整名稱。
     資料來源：Yahoo Finance，報價可能延遲約 15–20 分鐘。本頁顏色：紅＝漲、綠＝跌（與台股看盤慣例相同）。
     1 股台積電 ADR ＝ 5 股台股；ADR 溢價＝ADR 股價 ÷（台股股價 × 5 ÷ 美元匯率）− 1。
-    SpaceX 於 2026 年 6 月上市，歷史資料較短，「上市以來」最高最低取代 52 週數值。
+    SpaceX 於 2026 年 6 月上市，歷史資料較短，「上市以來」最高最低取代 52 週數值。<br>
+    「主力」以三大法人（外資含外資自營商、投信、自營商）代表，資料來源為台灣證交所三大法人買賣超日報，每個交易日收盤後公布；
+    單位為「張」（1 張＝1,000 股），紅色為買超、綠色為賣超。美股沒有公布此類資料。
   </p>
 </div>
 
@@ -189,14 +203,28 @@ function render(id, s, extra) {
           <div class="v">${esc(tl.value)}${tl.note ? ` · <span class="n">${esc(tl.note)}</span>` : ""}</div></div>
       </div>`).join("")}
     </div>
-    <div class="advice ${ADVICE_CLASS[s.advice]}">
-      <div><div class="lab">投資建議</div><div class="word">${esc(s.advice)}</div></div>
-      <div>
+    <div class="bottom">
+      <div class="advice ${ADVICE_CLASS[s.advice]}">
+        <div class="lab">投資建議</div><div class="word">${esc(s.advice)}</div>
         <div class="dots">${s.tools.map(tl => `<i class="${tl.bull ? "bull" : "bear"}" title="${esc(tl.name)}"></i>`).join("")}</div>
         <div class="sum">紅燈 <b>${s.bulls}</b> / ${s.tools.length} 個指標顯示漲勢</div>
-        <div class="rule">規則：紅燈（漲勢）≥ 7 買入 · 4–6 持有 · ≤ 3 賣出</div>
+        <div class="rule">紅燈 ≥ 7 買入 · 4–6 持有 · ≤ 3 賣出</div>
       </div>
+      ${instBox(s.inst)}
     </div>`;
+}
+
+function instBox(inst) {
+  const head = '<div class="lab">主力（三大法人）近 3 日買賣超（張）</div>';
+  if (!inst) return `<div class="inst">${head}<div class="na">美股沒有公布三大法人買賣資料</div></div>`;
+  if (!inst.days.length) return `<div class="inst">${head}<div class="na">暫時無法取得資料</div></div>`;
+  const lots = n => { const v = Math.round(n / 1000); return `<span class="${v > 0 ? "up" : v < 0 ? "down" : "flat"}">${v > 0 ? "+" : ""}${v.toLocaleString("zh-TW")}</span>`; };
+  const row = (label, d, cls = "") => `<tr class="${cls}"><td>${label}</td><td>${lots(d.foreign)}</td><td>${lots(d.trust)}</td><td>${lots(d.dealer)}</td><td>${lots(d.total)}</td></tr>`;
+  return `<div class="inst">${head}<table>
+    <tr><th></th><th>外資</th><th>投信</th><th>自營商</th><th>合計</th></tr>
+    ${inst.days.map(d => row(esc(d.date), d)).join("")}
+    ${row(`${inst.days.length} 日合計`, inst.sum, "total")}
+  </table></div>`;
 }
 
 async function getData() {
@@ -233,6 +261,8 @@ async function load() {
     render("tw", S.tw, S.adr && p ? `<span>ADR 換算價<b>${num(S.adr.price * d.usdtwd / p.ratio)} TWD</b></span>` : "");
     render("mtk", S.mtk, "");
     render("spcx", S.spcx, "");
+    render("etf50", S.etf50, "");
+    render("etf56", S.etf56, "");
   } catch (err) {
     document.getElementById("mode").textContent = "資料載入失敗，30 秒後重試";
     console.error(err);
