@@ -279,19 +279,31 @@ def analyse(closes, highs, lows, vols):
     return tools, bulls, advice, series
 
 
+def daily_bars(res):
+    """(timestamps, closes, highs, lows, volumes) from a Yahoo daily chart.
+
+    Yahoo often leaves today's bar empty or stale until well after the close, so the
+    last bar is filled from the live quote when that quote is from the same day.
+    """
+    meta, q = res["meta"], res["indicators"]["quote"][0]
+    rows = [list(r) for r in zip(res["timestamp"], q["close"], q["high"], q["low"], q["volume"])]
+    live, live_t = meta.get("regularMarketPrice"), meta.get("regularMarketTime", 0)
+    offset = meta.get("gmtoffset", 0)
+    if live and rows and (rows[-1][0] + offset) // 86400 == (live_t + offset) // 86400:
+        last = rows[-1]
+        last[1] = live
+        last[2] = max(x for x in (last[2], meta.get("regularMarketDayHigh"), live) if x is not None)
+        last[3] = min(x for x in (last[3], meta.get("regularMarketDayLow"), live) if x is not None)
+        last[4] = last[4] or meta.get("regularMarketVolume") or 0
+    rows = [r for r in rows if None not in r[1:4]]
+    ts, closes, highs, lows, vols = (list(x) for x in zip(*rows))
+    return ts, closes, highs, lows, [v or 0 for v in vols]
+
+
 def stock(symbol, name, exchange, currency, market):
     res = chart(symbol, "1y", "1d")
-    meta, q = res["meta"], res["indicators"]["quote"][0]
-    rows = [(t, c, h, l, v) for t, c, h, l, v in
-            zip(res["timestamp"], q["close"], q["high"], q["low"], q["volume"])
-            if None not in (c, h, l)]
-    ts, closes, highs, lows, vols = (list(x) for x in zip(*rows))
-    vols = [v or 0 for v in vols]
-    # During trading the last daily bar can lag the live quote; use the live price
-    live = meta.get("regularMarketPrice")
-    if live and meta.get("regularMarketTime", 0) >= ts[-1]:
-        closes[-1] = live
-        highs[-1], lows[-1] = max(highs[-1], live), min(lows[-1], live)
+    meta = res["meta"]
+    ts, closes, highs, lows, vols = daily_bars(res)
     tools, bulls, advice, series = analyse(closes, highs, lows, vols)
     prev = closes[-2]
     period = meta.get("currentTradingPeriod", {}).get("regular", {})
