@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>聯發科指標回測</title>
+<title>反向操作回測</title>
 <style>
   :root {
     --bg: #0b0f17; --panel: #111827; --panel-2: #1a2232; --line: #263044; --grid: #1f2838;
@@ -13,15 +13,16 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
     font: 14px/1.5 system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", sans-serif; }
+  html { scroll-behavior: smooth; }
   a { color: var(--accent); }
   .wrap { max-width: 1280px; margin: 0 auto; padding: 18px 16px 40px; }
   .nav { font-size: 12px; display: flex; gap: 14px; flex-wrap: wrap; }
   h1 { font-size: 22px; margin: 6px 0 2px; }
   .sub { color: var(--muted); font-size: 13px; }
-  .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 14px; margin: 18px 0; }
+  .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 14px; margin: 14px 0; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
   .verdict .lab { color: var(--muted); font-size: 12px; }
-  .verdict .big { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.15; margin: 4px 0; }
+  .verdict .big { font-size: 38px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.15; margin: 4px 0; }
   .verdict .word { font-size: 18px; font-weight: 700; }
   .verdict p { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
   .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
@@ -32,24 +33,35 @@
   .up { color: var(--bull); } .down { color: var(--bear); } .flat { color: var(--muted); }
 
   h2 { font-size: 15px; margin: 0 0 2px; }
+  .stock { margin-top: 36px; padding-top: 18px; border-top: 2px solid var(--line); scroll-margin-top: 54px; }
+  .stock-title { font-size: 22px; margin: 0 0 2px; }
   .chart-card { margin-bottom: 12px; position: relative; }
-  .chart-card .desc { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
-  .chart { width: 100%; height: 230px; position: relative; }
+  .desc { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+  .chart { width: 100%; height: 210px; position: relative; }
   .chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
   .chart text { fill: var(--muted); font-size: 11px; font-family: inherit; }
   .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 6px; }
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
   .tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-    padding: 8px 10px; font-size: 12px; white-space: nowrap; box-shadow: 0 6px 20px rgba(0,0,0,.4); display: none; z-index: 5; }
+    padding: 8px 10px; font-size: 12px; white-space: nowrap; box-shadow: 0 6px 20px rgba(0,0,0,.4); display: none; z-index: 20; }
   .tip b { font-variant-numeric: tabular-nums; }
 
+  .jump { position: sticky; top: 0; z-index: 10; background: rgba(11,15,23,.92); backdrop-filter: blur(6px);
+    display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0; margin-top: 14px; }
+  .jump a { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 999px;
+    padding: 5px 14px; font-size: 13px; text-decoration: none; }
+  .jump a:hover { border-color: var(--accent); }
+
   .tablewrap { overflow-x: auto; }
+  .daywrap { max-height: 560px; overflow: auto; }
   table.days { border-collapse: collapse; width: 100%; font-size: 12px; font-variant-numeric: tabular-nums; }
   table.days th { position: sticky; top: 0; background: var(--panel); color: var(--muted); font-weight: 500; padding: 6px 6px;
-    border-bottom: 1px solid var(--line); white-space: nowrap; text-align: center; }
+    border-bottom: 1px solid var(--line); white-space: nowrap; text-align: center; z-index: 1; }
   table.days td { padding: 5px 6px; border-bottom: 1px solid var(--grid); text-align: right; white-space: nowrap; }
   table.days td.c { text-align: center; }
   table.days tr:hover td { background: var(--panel-2); }
+  table.overview td:first-child { text-align: left; }
+  table.overview a { color: var(--text); }
   .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; vertical-align: -2px; }
   .dot.bull { background: var(--bull); box-shadow: 0 0 6px rgba(239,68,68,.5); }
   .dot.bear { background: var(--bear); box-shadow: 0 0 6px rgba(34,197,94,.5); }
@@ -58,21 +70,12 @@
   .sig.hold { color: var(--hold); border-color: var(--hold); }
   .sig.sell { color: var(--bear); border-color: var(--bear); }
   .act-buy { color: var(--bull); font-weight: 600; } .act-sell { color: var(--bear); font-weight: 600; } .act-none { color: var(--muted); }
-  .note { color: var(--muted); font-size: 12px; line-height: 1.75; margin-top: 18px; }
-  .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 10px; }
-  .tabs button { background: var(--panel); color: var(--muted); border: 1px solid var(--line); border-radius: 999px;
-    padding: 6px 16px; font: inherit; font-size: 13px; cursor: pointer; }
-  .tabs button.on { color: var(--text); border-color: var(--accent); background: var(--panel-2); }
-  .stock-title { font-size: 20px; margin: 4px 0 2px; }
-  table.overview tr[data-code] { cursor: pointer; }
-  table.overview tr.on td { background: var(--panel-2); }
-  table.overview td:first-child { text-align: left; }
-  .err { color: var(--muted); padding: 40px; text-align: center; }
+  .note { color: var(--muted); font-size: 12px; line-height: 1.75; margin-top: 24px; }
 
   @media (max-width: 900px) {
     .hero { grid-template-columns: minmax(0, 1fr); }
     .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .verdict .big { font-size: 32px; }
+    .verdict .big { font-size: 30px; }
   }
 </style>
 </head>
@@ -83,47 +86,13 @@
   <div class="sub" id="rule-line">載入中…</div>
 
   <section class="card" style="margin-top:16px">
-    <h2>四檔比較（每次 1 張，已扣手續費與稅）</h2>
-    <div class="desc sub" style="margin-bottom:8px">點選股票可在下方查看詳細圖表與每日燈號。</div>
+    <h2>四檔比較（每次 100 股，已扣手續費與稅）</h2>
+    <div class="desc">點股票名稱可跳到該股票的詳細資料。</div>
     <div class="tablewrap"><table class="days overview" id="overview"></table></div>
   </section>
 
-  <div class="tabs" id="tabs"></div>
-  <h2 class="stock-title" id="title"></h2>
-  <div class="sub" id="period"></div>
-
-  <div class="hero">
-    <div class="card verdict" id="verdict"></div>
-    <div class="tiles" id="tiles"></div>
-  </div>
-
-  <section class="card chart-card">
-    <h2>每日損益</h2>
-    <div class="desc">每天收盤時，全部持股市值加上已實現損益、扣除手續費與稅後，比前一天多賺或少賺的金額。</div>
-    <div class="chart" id="c-daily"></div>
-    <div class="legend"><span><i style="background:var(--bull)"></i>當日賺（向上）</span><span><i style="background:var(--bear)"></i>當日賠（向下）</span></div>
-  </section>
-
-  <section class="card chart-card">
-    <h2>累計損益</h2>
-    <div class="desc">從回測第一天起累積到當天的總損益（含未實現）。</div>
-    <div class="chart" id="c-cum"></div>
-  </section>
-
-  <section class="card chart-card">
-    <h2>股價與買賣點</h2>
-    <div class="desc">線為每日收盤價；▲ 為上午 10 點買進 1 張、▼ 為賣出 1 張的價格。</div>
-    <div class="chart" id="c-price"></div>
-    <div class="legend"><span><i style="background:#94a3b8;height:2px;vertical-align:3px"></i>收盤價</span>
-      <span><span class="up">▲</span> 買進</span><span><span class="down">▼</span> 賣出</span></div>
-  </section>
-
-  <section class="card">
-    <h2>每日十大指標燈號與買賣建議</h2>
-    <div class="desc sub" style="margin-bottom:8px">由上到下依日期排列。燈號以前一個交易日收盤資料計算（開盤前就能得知）；🔴 紅＝漲勢、🟢 綠＝跌勢。</div>
-    <div class="tablewrap"><table class="days" id="days"></table></div>
-  </section>
-
+  <nav class="jump" id="jump"></nav>
+  <div id="stocks"></div>
   <p class="note" id="note"></p>
 </div>
 <div class="tip" id="tip"></div>
@@ -133,11 +102,13 @@ const INDICATORS = ["MA", "MACD", "RSI", "KD", "布林", "DMI", "SAR", "威廉",
 const SIG_CLASS = { "買入": "buy", "持有": "hold", "賣出": "sell" };
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const int = n => Math.round(n).toLocaleString("zh-TW");
+const px = n => n.toLocaleString("zh-TW", { maximumFractionDigits: 2 });
 const money = n => (n > 0 ? "+" : n < 0 ? "−" : "") + Math.abs(Math.round(n)).toLocaleString("zh-TW");
 const cls = n => n > 0 ? "up" : n < 0 ? "down" : "flat";
 const md = s => s.slice(5).replace("-", "/");
+const isTrade = a => a.startsWith("買進") || a.startsWith("賣出");
 const tip = document.getElementById("tip");
-let all, data, code;
+let all;
 
 function niceTicks(lo, hi, count = 5) {
   const span = hi - lo || 1, step0 = span / count, mag = 10 ** Math.floor(Math.log10(step0));
@@ -147,12 +118,13 @@ function niceTicks(lo, hi, count = 5) {
   return ticks;
 }
 const short = v => Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(Math.abs(v) >= 1e7 ? 0 : 1) + "M"
-  : Math.abs(v) >= 1e3 ? (v / 1e3).toFixed(0) + "K" : String(Math.round(v));
+  : Math.abs(v) >= 1e3 ? (v / 1e3).toFixed(Math.abs(v) >= 1e4 ? 0 : 1) + "K" : String(Math.round(v));
 
 // Shared frame: x positions by day index, y scale, gridlines, axis labels, hover layer
-function frame(el, lo, hi, fmtY, draw, tipHtml) {
+function frame(el, bt, lo, hi, fmtY, draw) {
+  const days = bt.days;
   const W = el.clientWidth, H = el.clientHeight, L = 56, R = 10, T = 10, B = 24;
-  const n = data.days.length, band = (W - L - R) / n;
+  const n = days.length, band = (W - L - R) / n;
   const x = i => L + band * (i + 0.5);
   const ticks = niceTicks(lo, hi);
   lo = Math.min(lo, ticks[0]); hi = Math.max(hi, ticks[ticks.length - 1]);
@@ -161,8 +133,8 @@ function frame(el, lo, hi, fmtY, draw, tipHtml) {
   let svg = `<svg viewBox="0 0 ${W} ${H}">`;
   svg += ticks.map(v => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="${v === 0 ? "#3a465d" : "var(--grid)"}" stroke-width="1"/>
     <text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${fmtY(v)}</text>`).join("");
-  svg += data.days.map((d, i) => i % every ? "" : `<text x="${x(i)}" y="${H - 6}" text-anchor="middle">${md(d.date)}</text>`).join("");
-  svg += draw({ x, y, band, W, H, L, R, T, B });
+  svg += days.map((d, i) => i % every ? "" : `<text x="${x(i)}" y="${H - 6}" text-anchor="middle">${md(d.date)}</text>`).join("");
+  svg += draw({ x, y, band });
   svg += `<line class="xh" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="#64748b" stroke-dasharray="3 3" visibility="hidden"/>`;
   svg += `<rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent" class="hit"/></svg>`;
   el.innerHTML = svg;
@@ -171,7 +143,7 @@ function frame(el, lo, hi, fmtY, draw, tipHtml) {
     const r = el.getBoundingClientRect();
     const i = Math.max(0, Math.min(n - 1, Math.floor((e.clientX - r.left - L) / band)));
     xh.setAttribute("x1", x(i)); xh.setAttribute("x2", x(i)); xh.setAttribute("visibility", "visible");
-    tip.innerHTML = tipHtml(data.days[i]);
+    tip.innerHTML = dayTip(days[i]);
     tip.style.display = "block";
     const tw = tip.offsetWidth;
     const left = e.pageX + 14 + tw > window.scrollX + document.documentElement.clientWidth ? e.pageX - tw - 14 : e.pageX + 14;
@@ -181,132 +153,137 @@ function frame(el, lo, hi, fmtY, draw, tipHtml) {
 }
 
 const dayTip = d => `<div><b>${esc(d.date)}</b> · <span class="sig ${SIG_CLASS[d.signal]}">${esc(d.signal)}</span> 紅燈 ${d.bulls}/10</div>
-  <div>${esc(d.action)}${d.action.startsWith("買進") || d.action.startsWith("賣出") ? `（10 點 ${int(d.price10)}）` : ""}</div>
-  <div>收盤 ${int(d.close)} · 持股 ${d.lots} 張</div>
+  <div>${esc(d.action)}${isTrade(d.action) ? `（10 點 ${px(d.price10)}）` : ""}</div>
+  <div>收盤 ${px(d.close)} · 持股 ${int(d.shares)} 股</div>
   <div>當日損益 <b class="${cls(d.pnl)}">${money(d.pnl)}</b> 元</div>
   <div>累計損益 <b class="${cls(d.cum)}">${money(d.cum)}</b> 元</div>`;
 
-function drawDaily() {
-  const v = data.days.map(d => d.pnl);
-  frame(document.getElementById("c-daily"), Math.min(0, ...v), Math.max(0, ...v), short, ({ x, y, band }) => {
+function drawCharts(code) {
+  const bt = all.stocks[code];
+  const pnl = bt.days.map(d => d.pnl), cum = bt.days.map(d => d.cum);
+  frame(document.getElementById(`daily-${code}`), bt, Math.min(0, ...pnl), Math.max(0, ...pnl), short, ({ x, y, band }) => {
     const w = Math.max(2, Math.min(18, band - 2));
-    return data.days.map((d, i) => {
+    return bt.days.map((d, i) => {
       if (!d.pnl) return "";
       const top = y(Math.max(d.pnl, 0)), h = Math.max(1, Math.abs(y(d.pnl) - y(0)));
       return `<rect x="${x(i) - w / 2}" y="${top}" width="${w}" height="${h}" rx="2" fill="${d.pnl > 0 ? "var(--bull)" : "var(--bear)"}"/>`;
     }).join("");
-  }, dayTip);
+  });
+  frame(document.getElementById(`cum-${code}`), bt, Math.min(0, ...cum), Math.max(0, ...cum), short, ({ x, y }) => {
+    const last = bt.days.length - 1;
+    return `<polyline points="${bt.days.map((d, i) => `${x(i)},${y(d.cum)}`).join(" ")}" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round"/>
+      <circle cx="${x(last)}" cy="${y(bt.days[last].cum)}" r="4" fill="#60a5fa" stroke="var(--panel)" stroke-width="2"/>`;
+  });
+  const prices = bt.days.flatMap(d => [d.close, d.price10]);
+  const lo = Math.min(...prices), hi = Math.max(...prices), pad = (hi - lo) * 0.08;
+  frame(document.getElementById(`price-${code}`), bt, lo - pad, hi + pad, px, ({ x, y }) => {
+    const marks = bt.days.map((d, i) => d.action.startsWith("買進")
+      ? `<path d="M${x(i)},${y(d.price10) - 6} l5,9 h-10 z" fill="var(--bull)" stroke="var(--panel)" stroke-width="1.5"/>`
+      : d.action.startsWith("賣出")
+      ? `<path d="M${x(i)},${y(d.price10) + 6} l5,-9 h-10 z" fill="var(--bear)" stroke="var(--panel)" stroke-width="1.5"/>` : "").join("");
+    return `<polyline points="${bt.days.map((d, i) => `${x(i)},${y(d.close)}`).join(" ")}" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linejoin="round"/>${marks}`;
+  });
 }
 
-function drawCum() {
-  const v = data.days.map(d => d.cum);
-  frame(document.getElementById("c-cum"), Math.min(0, ...v), Math.max(0, ...v), short, ({ x, y }) => {
-    const pts = data.days.map((d, i) => `${x(i)},${y(d.cum)}`).join(" ");
-    const last = data.days.length - 1, d = data.days[last];
-    return `<polyline points="${pts}" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round"/>
-      <circle cx="${x(last)}" cy="${y(d.cum)}" r="4" fill="#60a5fa" stroke="var(--panel)" stroke-width="2"/>`;
-  }, dayTip);
+function stockSection(code) {
+  const bt = all.stocks[code], s = bt.summary, lot = all.rules.lot;
+  const tiles = [
+    ["已實現損益", money(s.realized), cls(s.realized), `賣出 ${s.sells} 次的結果`],
+    ["未實現損益", money(s.unrealized), cls(s.unrealized), `尚持有 ${int(s.shares_held)} 股`],
+    ["手續費＋交易稅", "−" + int(s.fees), "down", "已計入總損益"],
+    ["交易次數", `買 ${s.buys} / 賣 ${s.sells}`, "", `每次 ${lot} 股`],
+    ["目前持股", `${int(s.shares_held)} 股`, "", s.avg_cost ? `平均成本 ${px(s.avg_cost)}` : "無持股"],
+    ["最新收盤價", px(s.last_close), "", bt.end],
+    ["最高投入金額", int(s.max_cost), "", "同時持有股票的最大成本"],
+    ["建議分布", `${s.signal_counts["買入"]} / ${s.signal_counts["持有"]} / ${s.signal_counts["賣出"]}`, "", "買入 / 持有 / 賣出 天數"],
+  ];
+  const rows = bt.days.map(d => `<tr>
+      <td class="c">${esc(d.date)}</td>
+      ${d.lights.map((b, i) => `<td class="c"><span class="dot ${b ? "bull" : "bear"}" title="${INDICATORS[i]}：${b ? "漲勢" : "跌勢"}"></span></td>`).join("")}
+      <td class="c">${d.bulls}/10</td>
+      <td class="c"><span class="sig ${SIG_CLASS[d.signal]}">${esc(d.signal)}</span></td>
+      <td class="c ${d.action.startsWith("買進") ? "act-buy" : d.action.startsWith("賣出") ? "act-sell" : "act-none"}">${esc(d.action)}</td>
+      <td>${px(d.price10)}</td><td>${px(d.close)}</td><td>${int(d.shares)}</td><td>${d.fee ? int(d.fee) : ""}</td>
+      <td class="${cls(d.pnl)}">${money(d.pnl)}</td><td class="${cls(d.cum)}">${money(d.cum)}</td></tr>`).join("");
+  return `<section class="stock" id="s-${esc(code)}">
+    <h2 class="stock-title">${esc(bt.name)}（${esc(code)}）</h2>
+    <div class="sub">回測期間 ${esc(bt.start)} ～ ${esc(bt.end)}，共 ${s.trading_days} 個交易日 · 每次 ${lot} 股，約 ${int(s.last_close * lot)} 元</div>
+    <div class="hero">
+      <div class="card verdict">
+        <div class="lab">到今天的總損益（已扣手續費與交易稅）</div>
+        <div class="big ${cls(s.total)}">${money(s.total)} 元</div>
+        <div class="word ${cls(s.total)}">${s.total > 0 ? "賺錢" : s.total < 0 ? "賠錢" : "不賺不賠"}</div>
+        <p>同期間比較：<br>
+          · 照建議做（每次 ${lot} 股）：<b class="${cls(s.follow_total)}">${money(s.follow_total)} 元</b><br>
+          · 第一天 10 點買 ${lot} 股持有到今天：<b class="${cls(s.buy_and_hold)}">${money(s.buy_and_hold)} 元</b></p>
+      </div>
+      <div class="tiles">${tiles.map(([k, v, c, sub]) =>
+        `<div class="tile"><span>${k}</span><b class="${c}">${v}</b><small>${esc(sub)}</small></div>`).join("")}</div>
+    </div>
+    <section class="card chart-card">
+      <h2>每日損益</h2>
+      <div class="desc">每天收盤時，持股市值加已實現損益、扣除手續費與稅後，比前一天多賺或少賺的金額。</div>
+      <div class="chart" id="daily-${esc(code)}"></div>
+      <div class="legend"><span><i style="background:var(--bull)"></i>當日賺（向上）</span><span><i style="background:var(--bear)"></i>當日賠（向下）</span></div>
+    </section>
+    <section class="card chart-card">
+      <h2>累計損益</h2>
+      <div class="chart" id="cum-${esc(code)}"></div>
+    </section>
+    <section class="card chart-card">
+      <h2>股價與買賣點</h2>
+      <div class="desc">線為每日收盤價；▲ 為上午 10 點買進 ${lot} 股、▼ 為賣出 ${lot} 股的價格。</div>
+      <div class="chart" id="price-${esc(code)}"></div>
+      <div class="legend"><span><i style="background:#94a3b8;height:2px;vertical-align:3px"></i>收盤價</span>
+        <span><span class="up">▲</span> 買進</span><span><span class="down">▼</span> 賣出</span></div>
+    </section>
+    <section class="card">
+      <h2>每日十大指標燈號與買賣細節</h2>
+      <div class="desc">由上到下依日期排列。燈號以前一個交易日收盤資料計算（開盤前就能得知）；🔴 紅＝漲勢、🟢 綠＝跌勢。表格可上下捲動。</div>
+      <div class="tablewrap daywrap"><table class="days">
+        <tr><th>日期</th>${INDICATORS.map(n => `<th>${n}</th>`).join("")}<th>紅燈</th><th>建議</th><th>反向動作</th>
+          <th>10 點價</th><th>收盤</th><th>持股(股)</th><th>費用</th><th>當日損益</th><th>累計損益</th></tr>
+        ${rows}
+      </table></div>
+    </section>
+  </section>`;
 }
 
-function drawPrice() {
-  const v = data.days.flatMap(d => [d.close, d.price10]);
-  const lo = Math.min(...v), hi = Math.max(...v), pad = (hi - lo) * 0.08;
-  frame(document.getElementById("c-price"), lo - pad, hi + pad, int, ({ x, y }) => {
-    const pts = data.days.map((d, i) => `${x(i)},${y(d.close)}`).join(" ");
-    const marks = data.days.map((d, i) => {
-      if (d.action.startsWith("買進")) return `<path d="M${x(i)},${y(d.price10) - 6} l5,9 h-10 z" fill="var(--bull)" stroke="var(--panel)" stroke-width="1.5"/>`;
-      if (d.action.startsWith("賣出")) return `<path d="M${x(i)},${y(d.price10) + 6} l5,-9 h-10 z" fill="var(--bear)" stroke="var(--panel)" stroke-width="1.5"/>`;
-      return "";
-    }).join("");
-    return `<polyline points="${pts}" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linejoin="round"/>${marks}`;
-  }, dayTip);
-}
-
-function renderOverview() {
+function render() {
+  const lot = all.rules.lot;
   document.getElementById("rule-line").textContent =
-    `近 ${all.months} 個月到今天 · 每天上午 10 點反向操作：建議「賣出」就買進 1 張，建議「買入」就賣出 1 張（無持股不賣）`;
-  document.getElementById("tabs").innerHTML = all.order.map(c =>
-    `<button data-code="${esc(c)}" class="${c === code ? "on" : ""}">${esc(all.stocks[c].name)} ${esc(c)}</button>`).join("");
+    `近 ${all.months} 個月到今天 · 每天上午 10 點反向操作：建議「賣出」就買進 ${lot} 股，建議「買入」就賣出 ${lot} 股（無持股不賣）`;
   document.getElementById("overview").innerHTML = `
-    <tr><th>股票</th><th>1 張約</th><th>反向操作</th><th>照建議做</th><th>買 1 張持有</th><th>買／賣張數</th><th>目前持股</th><th>最高投入</th></tr>
+    <tr><th>股票</th><th>每次 ${lot} 股約</th><th>反向操作</th><th>照建議做</th><th>買 ${lot} 股持有</th><th>買／賣次數</th><th>目前持股</th><th>最高投入</th></tr>
     ${all.order.map(c => { const st = all.stocks[c], s = st.summary; return `
-      <tr data-code="${esc(c)}" class="${c === code ? "on" : ""}">
-        <td>${esc(st.name)} <span class="sub">${esc(c)}</span></td>
-        <td>${int(s.last_close * all.rules.lot)}</td>
+      <tr>
+        <td><a href="#s-${esc(c)}">${esc(st.name)}</a> <span class="sub">${esc(c)}</span></td>
+        <td>${int(s.last_close * lot)}</td>
         <td class="${cls(s.total)}"><b>${money(s.total)}</b></td>
         <td class="${cls(s.follow_total)}">${money(s.follow_total)}</td>
         <td class="${cls(s.buy_and_hold)}">${money(s.buy_and_hold)}</td>
         <td>${s.buys} / ${s.sells}</td>
-        <td>${s.lots_held} 張</td>
+        <td>${int(s.shares_held)} 股</td>
         <td>${int(s.max_cost)}</td></tr>`; }).join("")}`;
-}
-
-function select(c) {
-  code = c;
-  data = { ...all.stocks[c], months: all.months, rules: all.rules, generated: all.generated };
-  renderOverview();
-  render();
-}
-
-function render() {
-  const s = data.summary, r = data.rules;
-  document.title = `${data.name}反向操作回測`;
-  document.getElementById("title").textContent = `${data.name}（${code}）`;
-  document.getElementById("period").textContent =
-    `回測期間 ${data.start} ～ ${data.end}，共 ${s.trading_days} 個交易日 · 1 張＝${int(r.lot)} 股，約 ${int(s.last_close * r.lot)} 元`;
-  document.getElementById("verdict").innerHTML = `
-    <div class="lab">到今天的總損益（已扣手續費與交易稅）</div>
-    <div class="big ${cls(s.total)}">${money(s.total)} 元</div>
-    <div class="word ${cls(s.total)}">${s.total > 0 ? "賺錢" : s.total < 0 ? "賠錢" : "不賺不賠"}</div>
-    <p>同期間比較：<br>
-      · 照建議做（買入就買、賣出就賣，每次 1 張）：<b class="${cls(s.follow_total)}">${money(s.follow_total)} 元</b><br>
-      · 第一天 10 點買 1 張一路持有到今天：<b class="${cls(s.buy_and_hold)}">${money(s.buy_and_hold)} 元</b></p>`;
-  const tiles = [
-    ["已實現損益", money(s.realized), cls(s.realized), `賣出 ${s.sells} 張的結果`],
-    ["未實現損益", money(s.unrealized), cls(s.unrealized), `尚持有 ${s.lots_held} 張`],
-    ["手續費＋交易稅", "−" + int(s.fees), "down", "已計入總損益"],
-    ["交易張數", `買 ${s.buys} / 賣 ${s.sells}`, "", "每次只買或賣 1 張"],
-    ["目前持股", `${s.lots_held} 張`, "", s.avg_cost ? `平均成本 ${int(s.avg_cost)}` : "無持股"],
-    ["最新收盤價", int(s.last_close), "", data.end],
-    ["最高投入金額", int(s.max_cost), "", "同時持有股票的最大成本"],
-    ["建議分布", `${s.signal_counts["買入"]} / ${s.signal_counts["持有"]} / ${s.signal_counts["賣出"]}`, "", "買入 / 持有 / 賣出 天數"],
-  ];
-  document.getElementById("tiles").innerHTML = tiles.map(([k, v, c, sub]) =>
-    `<div class="tile"><span>${k}</span><b class="${c}">${v}</b><small>${esc(sub)}</small></div>`).join("");
-
-  drawDaily(); drawCum(); drawPrice();
-
-  document.getElementById("days").innerHTML = `
-    <tr><th>日期</th>${INDICATORS.map(n => `<th>${n}</th>`).join("")}<th>紅燈</th><th>建議</th><th>反向動作</th>
-      <th>10 點價</th><th>收盤</th><th>持股</th><th>當日損益</th><th>累計損益</th></tr>
-    ${data.days.map(d => `<tr>
-      <td class="c">${esc(d.date)}</td>
-      ${d.lights.map((b, i) => `<td class="c"><span class="dot ${b ? "bull" : "bear"}" title="${INDICATORS[i]}：${b ? "漲勢" : "跌勢"}"></span></td>`).join("")}
-      <td class="c">${d.bulls}/10</td>
-      <td class="c"><span class="sig ${SIG_CLASS[d.signal]}">${esc(d.signal)}</span></td>      <td class="c ${d.action.startsWith("買進") ? "act-buy" : d.action.startsWith("賣出") ? "act-sell" : "act-none"}">${esc(d.action)}</td>
-      <td>${int(d.price10)}</td><td>${int(d.close)}</td><td>${d.lots}</td>
-      <td class="${cls(d.pnl)}">${money(d.pnl)}</td><td class="${cls(d.cum)}">${money(d.cum)}</td></tr>`).join("")}`;
-
+  document.getElementById("jump").innerHTML = all.order.map(c =>
+    `<a href="#s-${esc(c)}">${esc(all.stocks[c].name)} ${esc(c)}</a>`).join("") + `<a href="#">↑ 回頂端</a>`;
+  document.getElementById("stocks").innerHTML = all.order.map(stockSection).join("");
+  all.order.forEach(drawCharts);
+  const r = all.rules;
   document.getElementById("note").innerHTML = `
     <b>回測規則：</b>每天開盤前，用前一個交易日收盤為止的日線計算 10 個指標（MA、MACD、RSI、KD、布林通道、DMI、SAR、威廉 %R、ROC、OBV），
-    紅燈 ≥ 7 為「買入」、4–6「持有」、≤ 3「賣出」。上午 10 點<b>反向操作</b>：建議「賣出」就買進 1 張；建議「買入」就賣出 1 張，手上 0 張就不賣（不放空）；「持有」不動作。每次只買或賣 1 張。<br>
-    <b>成本：</b>手續費 ${(r.fee_rate * 100).toFixed(4)}%（最低 ${r.fee_min} 元，未計折扣）、賣出交易稅 ${(r.tax_rate * 100).toFixed(1)}%。成交價用 Yahoo Finance 小時線 10:00 的價格，實際成交可能有落差。<br>
-    <b>注意：</b>每檔股票 1 張的金額差很多（例如信驊 1 張超過 1,000 萬元、0050 約 10 萬元），連續訊號會讓持股累積到好幾張，損益金額請和投入金額一起看。
-    反向操作在來回震盪的行情較有利，遇到一路上漲會太早賣光、一路下跌則會越跌越買。歷史回測結果不代表未來表現，僅供學習參考，不構成投資建議。<br>
-    資料產生時間：${new Date(data.generated).toLocaleString("zh-TW")}`;
+    紅燈 ≥ 7 為「買入」、4–6「持有」、≤ 3「賣出」。上午 10 點<b>反向操作</b>：建議「賣出」就買進 ${r.lot} 股；建議「買入」就賣出 ${r.lot} 股，手上沒有股票就不賣（不放空）；「持有」不動作。<br>
+    <b>成本：</b>手續費 ${(r.fee_rate * 100).toFixed(4)}%（每筆最低 ${r.fee_min} 元，未計折扣）、賣出交易稅 ${(r.tax_rate * 100).toFixed(1)}%。
+    每次只交易 ${r.lot} 股，金額小的股票（例如 0050）手續費常以最低 ${r.fee_min} 元計算，對損益影響較大。<br>
+    <b>成交價：</b>用 Yahoo Finance 小時線 10:00 的價格。實際上 100 股屬於「盤中零股」交易，成交價可能和整股略有差異。<br>
+    <b>注意：</b>歷史回測結果不代表未來表現，僅供學習參考，不構成投資建議。資料產生時間：${new Date(all.generated).toLocaleString("zh-TW")}`;
+  if (location.hash) document.querySelector(location.hash)?.scrollIntoView();
 }
 
-const pick = e => { const el = e.target.closest("[data-code]"); if (el) { select(el.dataset.code); history.replaceState(null, "", "#" + el.dataset.code); } };
-document.getElementById("tabs").addEventListener("click", pick);
-document.getElementById("overview").addEventListener("click", pick);
-
-fetch(`data/backtest.json?t=${Date.now()}`).then(r => r.json()).then(d => {
-  all = d;
-  const want = location.hash.slice(1);
-  select(all.stocks[want] ? want : all.order[0]);
-}).catch(err => { document.getElementById("rule-line").textContent = "資料載入失敗"; console.error(err); });
+fetch(`data/backtest.json?t=${Date.now()}`).then(r => r.json()).then(d => { all = d; render(); })
+  .catch(err => { document.getElementById("rule-line").textContent = "資料載入失敗"; console.error(err); });
 let rt;
-window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => data && (drawDaily(), drawCum(), drawPrice()), 150); });
+window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => all && all.order.forEach(drawCharts), 150); });
 </script>
 </body>
 </html>

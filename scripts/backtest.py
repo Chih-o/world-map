@@ -3,7 +3,7 @@
 Each trading day the signal is computed from daily bars up to the previous close (no look-ahead).
 At 10:00 the strategy trades one lot (1,000 shares) against the signal: 賣出 -> buy one lot,
 買入 -> sell one lot if any is held (no short selling), 持有 -> nothing. Taiwan fees are included.
-For comparison it also reports following the signal one lot at a time, and buying one lot and holding.
+For comparison it also reports following the signal 100 shares at a time, and buying 100 shares and holding.
 Writes data/backtest.json.
 """
 import json
@@ -23,7 +23,7 @@ STOCKS = [
     ("5274", "5274.TWO", "信驊"),
     ("0050", "0050.TW", "元大台灣50"),
 ]
-LOT = 1000
+LOT = 100  # shares per trade (odd-lot trading)
 MONTHS = 3
 FEE_RATE, FEE_MIN, TAX_RATE = 0.001425, 20, 0.003
 TW = timezone(timedelta(hours=8))
@@ -39,7 +39,7 @@ def fee(amount, sell):
 
 
 def simulate(signals, rule):
-    """signals: list of (date, advice, price at 10:00, close). One lot per trade."""
+    """signals: list of (date, advice, price at 10:00, close). LOT shares per trade."""
     shares = cost = cash = realized = fees = prev = max_cost = 0.0
     out = []
     for d, advice, price, close in signals:
@@ -49,7 +49,7 @@ def simulate(signals, rule):
             cash -= price * LOT + day_fee
             cost += price * LOT
             shares += LOT
-            action = "買進 1 張"
+            action = f"買進 {LOT} 股"
         elif do == "sell" and shares >= LOT:
             avg = cost / shares
             day_fee = fee(price * LOT, sell=True)
@@ -57,19 +57,19 @@ def simulate(signals, rule):
             realized += (price - avg) * LOT
             cost -= avg * LOT
             shares -= LOT
-            action = "賣出 1 張"
+            action = f"賣出 {LOT} 股"
         elif do == "sell":
             action = "無持股，不動作"
         fees += day_fee
         max_cost = max(max_cost, cost)
         equity = cash + shares * close
-        out.append({"action": action, "lots": int(shares // LOT), "fee": day_fee,
+        out.append({"action": action, "shares": int(shares), "fee": day_fee,
                     "pnl": round(equity - prev), "cum": round(equity)})
         prev = equity
     last_close = signals[-1][3]
     summary = {
         "total": round(prev), "realized": round(realized), "unrealized": round(shares * last_close - cost),
-        "fees": round(fees), "lots_held": int(shares // LOT),
+        "fees": round(fees), "shares_held": int(shares),
         "avg_cost": round(cost / shares, 2) if shares else None,
         "buys": sum(x["action"].startswith("買進") for x in out),
         "sells": sum(x["action"].startswith("賣出") for x in out),
@@ -139,7 +139,7 @@ def main():
             continue
         s = stocks[code]["summary"]
         print(f"{code} {name}: {stocks[code]['start']}~{stocks[code]['end']} signals {s['signal_counts']}  "
-              f"contrarian {s['total']:+,} (buys {s['buys']} sells {s['sells']} held {s['lots_held']})  "
+              f"contrarian {s['total']:+,} (buys {s['buys']} sells {s['sells']} held {s['shares_held']})  "
               f"follow {s['follow_total']:+,}  buy&hold {s['buy_and_hold']:+,}")
     if not stocks:
         sys.exit("no backtest could be run")
