@@ -22,6 +22,7 @@ index.html：世界地圖（Leaflet）
 | `index.html` | 地圖網頁 |
 | `scripts/fetch_gdelt.py` | 下載 GDELT 資料，依國家統計 |
 | `scripts/fetch_markets.py` | 下載股市指數 |
+| `tsmc.html`、`scripts/fetch_tsmc.py` | 台積電 ADR／台股技術分析（MA、MACD、RSI、KD、布林通道），網址 `/world-map/tsmc.html` |
 | `.github/workflows/update.yml` | 每 30 分鐘自動執行並發布網站 |
 | `data/` | 自動產生的資料（請勿手動修改） |
 
