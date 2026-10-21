@@ -71,7 +71,7 @@
 <body>
 <div class="wrap">
   <div class="nav"><a href="tsmc.html">← 個股技術分析</a><a href="./">全球時事地圖</a></div>
-  <h1>聯發科（2454）十大指標回測</h1>
+  <h1>聯發科（2454）十大指標反向操作回測</h1>
   <div class="sub" id="period">載入中…</div>
 
   <div class="hero">
@@ -94,7 +94,7 @@
 
   <section class="card chart-card">
     <h2>股價與買賣點</h2>
-    <div class="desc">線為每日收盤價；▲ 為上午 10 點買進 1 張、▼ 為賣出的價格（旁邊數字為賣出張數）。</div>
+    <div class="desc">線為每日收盤價；▲ 為上午 10 點買進 1 張、▼ 為賣出 1 張的價格。</div>
     <div class="chart" id="c-price"></div>
     <div class="legend"><span><i style="background:#94a3b8;height:2px;vertical-align:3px"></i>收盤價</span>
       <span><span class="up">▲</span> 買進</span><span><span class="down">▼</span> 賣出</span></div>
@@ -162,7 +162,7 @@ function frame(el, lo, hi, fmtY, draw, tipHtml) {
   hit.addEventListener("mouseleave", () => { tip.style.display = "none"; xh.setAttribute("visibility", "hidden"); });
 }
 
-const dayTip = d => `<div><b>${esc(d.date)}</b> · <span class="sig ${SIG_CLASS[d.signal]}">${esc(d.signal)}</span> 紅燈 ${d.bulls}/10${d.sell_streak ? ` · 連續賣出第 ${d.sell_streak} 天` : ""}</div>
+const dayTip = d => `<div><b>${esc(d.date)}</b> · <span class="sig ${SIG_CLASS[d.signal]}">${esc(d.signal)}</span> 紅燈 ${d.bulls}/10</div>
   <div>${esc(d.action)}${d.action.startsWith("買進") || d.action.startsWith("賣出") ? `（10 點 ${int(d.price10)}）` : ""}</div>
   <div>收盤 ${int(d.close)} · 持股 ${d.lots} 張</div>
   <div>當日損益 <b class="${cls(d.pnl)}">${money(d.pnl)}</b> 元</div>
@@ -197,8 +197,7 @@ function drawPrice() {
     const pts = data.days.map((d, i) => `${x(i)},${y(d.close)}`).join(" ");
     const marks = data.days.map((d, i) => {
       if (d.action.startsWith("買進")) return `<path d="M${x(i)},${y(d.price10) - 6} l5,9 h-10 z" fill="var(--bull)" stroke="var(--panel)" stroke-width="1.5"/>`;
-      if (d.action.startsWith("賣出")) return `<path d="M${x(i)},${y(d.price10) + 6} l5,-9 h-10 z" fill="var(--bear)" stroke="var(--panel)" stroke-width="1.5"/>
-        <text x="${x(i)}" y="${y(d.price10) + 19}" text-anchor="middle" style="fill:var(--bear);font-weight:700">${d.traded}</text>`;
+      if (d.action.startsWith("賣出")) return `<path d="M${x(i)},${y(d.price10) + 6} l5,-9 h-10 z" fill="var(--bear)" stroke="var(--panel)" stroke-width="1.5"/>`;
       return "";
     }).join("");
     return `<polyline points="${pts}" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linejoin="round"/>${marks}`;
@@ -208,17 +207,19 @@ function drawPrice() {
 function render() {
   const s = data.summary, r = data.rules;
   document.getElementById("period").textContent =
-    `回測期間 ${data.start} ～ ${data.end}，共 ${s.trading_days} 個交易日 · 每天上午 10 點依開盤前的建議交易：買入每次 1 張；連續第 N 天賣出就賣 N 張（不超過持股）`;
+    `回測期間 ${data.start} ～ ${data.end}（近 ${data.months} 個月），共 ${s.trading_days} 個交易日 · 每天上午 10 點反向操作：建議「賣出」就買進 1 張，建議「買入」就賣出 1 張`;
   document.getElementById("verdict").innerHTML = `
     <div class="lab">到今天的總損益（已扣手續費與交易稅）</div>
     <div class="big ${cls(s.total)}">${money(s.total)} 元</div>
     <div class="word ${cls(s.total)}">${s.total > 0 ? "賺錢" : s.total < 0 ? "賠錢" : "不賺不賠"}</div>
-    <p>同期間若只在第一天 10 點買 1 張、一路持有到今天收盤：<b class="${cls(s.buy_and_hold)}">${money(s.buy_and_hold)} 元</b></p>`;
+    <p>同期間比較：<br>
+      · 照建議做（買入就買、賣出就賣，每次 1 張）：<b class="${cls(s.follow_total)}">${money(s.follow_total)} 元</b><br>
+      · 第一天 10 點買 1 張一路持有到今天：<b class="${cls(s.buy_and_hold)}">${money(s.buy_and_hold)} 元</b></p>`;
   const tiles = [
     ["已實現損益", money(s.realized), cls(s.realized), `賣出 ${s.sells} 張的結果`],
     ["未實現損益", money(s.unrealized), cls(s.unrealized), `尚持有 ${s.lots_held} 張`],
     ["手續費＋交易稅", "−" + int(s.fees), "down", "已計入總損益"],
-    ["交易張數", `買 ${s.buys} / 賣 ${s.sells}`, "", `賣出分 ${s.sell_days} 天完成`],
+    ["交易張數", `買 ${s.buys} / 賣 ${s.sells}`, "", "每次只買或賣 1 張"],
     ["目前持股", `${s.lots_held} 張`, "", s.avg_cost ? `平均成本 ${int(s.avg_cost)}` : "無持股"],
     ["最新收盤價", int(s.last_close), "", data.end],
     ["最高投入金額", int(s.max_cost), "", "同時持有股票的最大成本"],
@@ -230,24 +231,22 @@ function render() {
   drawDaily(); drawCum(); drawPrice();
 
   document.getElementById("days").innerHTML = `
-    <tr><th>日期</th>${INDICATORS.map(n => `<th>${n}</th>`).join("")}<th>紅燈</th><th>建議</th><th>連續賣出</th><th>動作</th>
+    <tr><th>日期</th>${INDICATORS.map(n => `<th>${n}</th>`).join("")}<th>紅燈</th><th>建議</th><th>反向動作</th>
       <th>10 點價</th><th>收盤</th><th>持股</th><th>當日損益</th><th>累計損益</th></tr>
     ${data.days.map(d => `<tr>
       <td class="c">${esc(d.date)}</td>
       ${d.lights.map((b, i) => `<td class="c"><span class="dot ${b ? "bull" : "bear"}" title="${INDICATORS[i]}：${b ? "漲勢" : "跌勢"}"></span></td>`).join("")}
       <td class="c">${d.bulls}/10</td>
-      <td class="c"><span class="sig ${SIG_CLASS[d.signal]}">${esc(d.signal)}</span></td>
-      <td class="c">${d.sell_streak ? `第 ${d.sell_streak} 天` : ""}</td>
-      <td class="c ${d.action.startsWith("買進") ? "act-buy" : d.action.startsWith("賣出") ? "act-sell" : "act-none"}">${esc(d.action)}</td>
+      <td class="c"><span class="sig ${SIG_CLASS[d.signal]}">${esc(d.signal)}</span></td>      <td class="c ${d.action.startsWith("買進") ? "act-buy" : d.action.startsWith("賣出") ? "act-sell" : "act-none"}">${esc(d.action)}</td>
       <td>${int(d.price10)}</td><td>${int(d.close)}</td><td>${d.lots}</td>
       <td class="${cls(d.pnl)}">${money(d.pnl)}</td><td class="${cls(d.cum)}">${money(d.cum)}</td></tr>`).join("")}`;
 
   document.getElementById("note").innerHTML = `
     <b>回測規則：</b>每天開盤前，用前一個交易日收盤為止的日線計算 10 個指標（MA、MACD、RSI、KD、布林通道、DMI、SAR、威廉 %R、ROC、OBV），
-    紅燈 ≥ 7 為「買入」、4–6「持有」、≤ 3「賣出」。上午 10 點：「買入」買進 1 張；「持有」不動作；
-    「賣出」依連續天數決定張數——連續第 1 天賣 1 張、第 2 天賣 2 張、第 N 天賣 N 張，最多賣到持股歸零；手上 0 張就不賣（不放空）。中間出現「買入」或「持有」，連續天數重新計算。<br>
+    紅燈 ≥ 7 為「買入」、4–6「持有」、≤ 3「賣出」。上午 10 點<b>反向操作</b>：建議「賣出」就買進 1 張；建議「買入」就賣出 1 張，手上 0 張就不賣（不放空）；「持有」不動作。每次只買或賣 1 張。<br>
     <b>成本：</b>手續費 ${(r.fee_rate * 100).toFixed(4)}%（最低 ${r.fee_min} 元，未計折扣）、賣出交易稅 ${(r.tax_rate * 100).toFixed(1)}%。成交價用 Yahoo Finance 小時線 10:00 的價格，實際成交可能有落差。<br>
-    <b>注意：</b>聯發科 1 張約 400–500 萬元，連續買入訊號會讓持股累積到很多張，所以損益金額很大。手續費與交易稅依每次成交總金額計算。歷史回測結果不代表未來表現，僅供學習參考，不構成投資建議。<br>
+    <b>注意：</b>聯發科 1 張約 300–500 萬元，連續訊號會讓持股累積到好幾張，所以損益金額很大。
+    反向操作在來回震盪的行情較有利，遇到一路上漲會太早賣光、一路下跌則會越跌越買。歷史回測結果不代表未來表現，僅供學習參考，不構成投資建議。<br>
     資料產生時間：${new Date(data.generated).toLocaleString("zh-TW")}`;
 }
 

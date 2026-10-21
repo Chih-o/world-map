@@ -1,9 +1,10 @@
-"""Backtest the ten-indicator signal on MediaTek (2454.TW) over the last two months.
+"""Backtest a contrarian use of the ten-indicator signal on MediaTek (2454.TW) over the last three months.
 
 Each trading day the signal is computed from daily bars up to the previous close (no look-ahead).
-At 10:00 the strategy buys one lot (1,000 shares) on 買入 and does nothing on 持有. On 賣出 it sells
-N lots on the Nth consecutive 賣出 day, capped at the lots held; with no lots it does nothing
-(no short selling). Taiwan fees are included. Writes data/backtest_2454.json.
+At 10:00 the strategy trades one lot (1,000 shares) against the signal: 賣出 -> buy one lot,
+買入 -> sell one lot if any is held (no short selling), 持有 -> nothing. Taiwan fees are included.
+For comparison it also reports following the signal one lot at a time, and buying one lot and holding.
+Writes data/backtest_2454.json.
 """
 import json
 import sys
@@ -17,13 +18,58 @@ from fetch_tsmc import analyse, daily_bars
 DATA = Path(__file__).resolve().parent.parent / "data"
 SYMBOL, NAME = "2454.TW", "聯發科"
 LOT = 1000
-MONTHS = 2
+MONTHS = 3
 FEE_RATE, FEE_MIN, TAX_RATE = 0.001425, 20, 0.003
 TW = timezone(timedelta(hours=8))
+# signal -> what the strategy does
+STRATEGIES = {
+    "contrarian": {"賣出": "buy", "買入": "sell"},
+    "follow": {"買入": "buy", "賣出": "sell"},
+}
 
 
 def fee(amount, sell):
     return max(round(amount * FEE_RATE), FEE_MIN) + (round(amount * TAX_RATE) if sell else 0)
+
+
+def simulate(signals, rule):
+    """signals: list of (date, advice, price at 10:00, close). One lot per trade."""
+    shares = cost = cash = realized = fees = prev = max_cost = 0.0
+    out = []
+    for d, advice, price, close in signals:
+        do, action, day_fee = rule.get(advice), "—", 0
+        if do == "buy":
+            day_fee = fee(price * LOT, sell=False)
+            cash -= price * LOT + day_fee
+            cost += price * LOT
+            shares += LOT
+            action = "買進 1 張"
+        elif do == "sell" and shares >= LOT:
+            avg = cost / shares
+            day_fee = fee(price * LOT, sell=True)
+            cash += price * LOT - day_fee
+            realized += (price - avg) * LOT
+            cost -= avg * LOT
+            shares -= LOT
+            action = "賣出 1 張"
+        elif do == "sell":
+            action = "無持股，不動作"
+        fees += day_fee
+        max_cost = max(max_cost, cost)
+        equity = cash + shares * close
+        out.append({"action": action, "lots": int(shares // LOT), "fee": day_fee,
+                    "pnl": round(equity - prev), "cum": round(equity)})
+        prev = equity
+    last_close = signals[-1][3]
+    summary = {
+        "total": round(prev), "realized": round(realized), "unrealized": round(shares * last_close - cost),
+        "fees": round(fees), "lots_held": int(shares // LOT),
+        "avg_cost": round(cost / shares, 2) if shares else None,
+        "buys": sum(x["action"].startswith("買進") for x in out),
+        "sells": sum(x["action"].startswith("賣出") for x in out),
+        "max_cost": round(max_cost),
+    }
+    return out, summary
 
 
 def main():
@@ -31,10 +77,9 @@ def main():
     bars = [(datetime.fromtimestamp(t, TW).date(), c, h, l, v)
             for t, c, h, l, v in zip(ts, closes, highs, lows, vols)]
 
-    hourly = chart(SYMBOL, "3mo", "60m")
-    hq = hourly["indicators"]["quote"][0]
+    hourly = chart(SYMBOL, "6mo", "60m")
     at10 = {}
-    for t, o in zip(hourly["timestamp"], hq["open"]):
+    for t, o in zip(hourly["timestamp"], hourly["indicators"]["quote"][0]["open"]):
         dt = datetime.fromtimestamp(t, TW)
         if dt.hour == 10 and dt.minute == 0 and o is not None:
             at10[dt.date()] = o
@@ -45,91 +90,46 @@ def main():
         m, y = m + 12, y - 1
     start = date(y, m, min(today.day, 28))
 
-    shares = cost = cash = 0.0
-    realized = fees_total = 0.0
-    prev_equity = 0.0
-    max_cost = 0.0
-    sell_streak = 0
-    days, trades = [], []
+    days, signals = [], []
     for i, (d, close, *_rest) in enumerate(bars):
         if d < start or d not in at10:
             continue
         hist = bars[:i]  # up to the previous close
         tools, bulls, advice, _ = analyse([b[1] for b in hist], [b[2] for b in hist],
                                           [b[3] for b in hist], [b[4] for b in hist])
-        price = at10[d]
-        action, day_fee, traded = "—", 0, 0
-        sell_streak = sell_streak + 1 if advice == "賣出" else 0
-        if advice == "買入":
-            day_fee = fee(price * LOT, sell=False)
-            cash -= price * LOT + day_fee
-            cost += price * LOT
-            shares += LOT
-            traded = 1
-            action = "買進 1 張"
-        elif advice == "賣出" and shares >= LOT:
-            traded = min(sell_streak, int(shares // LOT))
-            qty = traded * LOT
-            avg = cost / shares
-            day_fee = fee(price * qty, sell=True)
-            cash += price * qty - day_fee
-            realized += (price - avg) * qty
-            cost -= avg * qty
-            shares -= qty
-            action = f"賣出 {traded} 張"
-        elif advice == "賣出":
-            action = "無持股，不動作"
-        fees_total += day_fee
-        max_cost = max(max_cost, cost)
-        equity = cash + shares * close
-        if traded:
-            trades.append({"date": d.isoformat(), "action": action, "lots": traded, "price": price, "fee": day_fee})
-        days.append({
-            "date": d.isoformat(), "bulls": bulls, "signal": advice, "action": action, "traded": traded,
-            "sell_streak": sell_streak,
-            "price10": price, "close": close, "lots": int(shares // LOT),
-            "fee": day_fee,
-            "pnl": round(equity - prev_equity),
-            "cum": round(equity),
-            "lights": [t["bull"] for t in tools],
-        })
-        prev_equity = equity
+        signals.append((d, advice, at10[d], close))
+        days.append({"date": d.isoformat(), "bulls": bulls, "signal": advice, "price10": at10[d],
+                     "close": close, "lights": [t["bull"] for t in tools]})
 
-    last_close = days[-1]["close"]
-    unrealized = shares * last_close - cost
-    first = days[0]
-    bh_shares_cost = first["price10"] * LOT
-    bh = (last_close - first["price10"]) * LOT - fee(bh_shares_cost, False) - fee(last_close * LOT, True)
+    trades, summary = simulate(signals, STRATEGIES["contrarian"])
+    for day, t in zip(days, trades):
+        day.update(t)
+    _, follow = simulate(signals, STRATEGIES["follow"])
+
+    first, last_close = days[0]["price10"], days[-1]["close"]
+    buy_and_hold = (last_close - first) * LOT - fee(first * LOT, False) - fee(last_close * LOT, True)
+    summary.update({
+        "last_close": last_close,
+        "trading_days": len(days),
+        "signal_counts": {s: sum(x["signal"] == s for x in days) for s in ("買入", "持有", "賣出")},
+        "buy_and_hold": round(buy_and_hold),
+        "follow_total": follow["total"],
+    })
     out = {
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "symbol": SYMBOL, "name": NAME, "start": first["date"], "end": days[-1]["date"],
+        "symbol": SYMBOL, "name": NAME, "months": MONTHS,
+        "start": days[0]["date"], "end": days[-1]["date"],
         "rules": {"lot": LOT, "fee_rate": FEE_RATE, "fee_min": FEE_MIN, "tax_rate": TAX_RATE},
-        "summary": {
-            "total": round(prev_equity),
-            "realized": round(realized),
-            "unrealized": round(unrealized),
-            "fees": round(fees_total),
-            "lots_held": int(shares // LOT),
-            "avg_cost": round(cost / shares, 2) if shares else None,
-            "last_close": last_close,
-            "buys": sum(t["lots"] for t in trades if t["action"].startswith("買進")),
-            "sells": sum(t["lots"] for t in trades if t["action"].startswith("賣出")),
-            "sell_days": sum(t["action"].startswith("賣出") for t in trades),
-            "max_cost": round(max_cost),
-            "trading_days": len(days),
-            "signal_counts": {s: sum(x["signal"] == s for x in days) for s in ("買入", "持有", "賣出")},
-            "buy_and_hold": round(bh),
-        },
+        "summary": summary,
         "days": days,
-        "trades": trades,
     }
     DATA.mkdir(exist_ok=True)
     (DATA / "backtest_2454.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), "utf-8")
-    s = out["summary"]
+    s = summary
     print(f"{out['start']} ~ {out['end']}  {s['trading_days']} days  signals {s['signal_counts']}")
-    print(f"buys {s['buys']} sells {s['sells']} held {s['lots_held']}  total {s['total']:+,} "
-          f"(realized {s['realized']:+,}, unrealized {s['unrealized']:+,}, fees {s['fees']:,})  "
-          f"buy&hold {s['buy_and_hold']:+,}")
+    print(f"contrarian: buys {s['buys']} sells {s['sells']} held {s['lots_held']}  total {s['total']:+,} "
+          f"(realized {s['realized']:+,}, unrealized {s['unrealized']:+,}, fees {s['fees']:,})")
+    print(f"follow signal 1 lot: {s['follow_total']:+,}   buy&hold 1 lot: {s['buy_and_hold']:+,}")
 
 
 if __name__ == "__main__":
